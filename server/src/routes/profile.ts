@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { upsertProfile, getProfile } from "../services/database";
+import { upsertProfile, getProfile, getResumes, getApplications } from "../services/database";
+import { getUsageSummary } from "../services/subscription";
 
 export const profileRouter = Router();
 
@@ -9,7 +10,10 @@ profileRouter.get("/", async (req, res) => {
         const email = req.query.email as string;
         if (!email) return res.status(400).json({ error: "Email required" });
         const profile = await getProfile(email);
-        res.json({ profile });
+        const usage = await getUsageSummary(email);
+        const resumes = await getResumes(email);
+        const applications = await getApplications(email);
+        res.json({ profile, usage, resumes, applications });
     } catch (err) {
         res.status(500).json({ error: (err as Error).message });
     }

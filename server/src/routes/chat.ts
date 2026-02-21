@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { callGemini, generateResume, scoreResume, generateCoverLetter, interviewCoach, GeminiResponse } from "../services/gemini";
 import { checkUsage, incrementUsage, getUserPlan, getUsageSummary } from "../services/subscription";
-import { getProfile, upsertProfile, getApplications, saveChatMessage } from "../services/database";
+import { getProfile, upsertProfile, getApplications, saveChatMessage, saveResume } from "../services/database";
 import { autoApply } from "../services/autoapply";
 
 export const chatRouter = Router();
@@ -112,7 +112,10 @@ chatRouter.post("/", async (req, res) => {
                         data.job_title || (profile.target_role as string) || "Software Developer",
                         data.job_description,
                     );
-                    if (email) await incrementUsage(email, "resume");
+                    if (email) {
+                        await incrementUsage(email, "resume");
+                        await saveResume(email, data.job_title || (profile.target_role as string) || "General", resume);
+                    }
                     result = { resume };
                 } else {
                     aiResponse.message = "I need to know about you first! Tell me your profession, skills, and experience.";

@@ -411,9 +411,13 @@ function HomeInner() {
                     <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    {user.avatar && (
-                        <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%" }} />
-                    )}
+                    <a href="/profile" style={{ display: "flex", alignItems: "center" }}>
+                        {user.avatar ? (
+                            <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%", cursor: "pointer" }} />
+                        ) : (
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#888", cursor: "pointer" }}>{(user.name || "?")[0]}</div>
+                        )}
+                    </a>
                     <button onClick={handleLogout} style={{
                         fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer",
                     }}>Logout</button>

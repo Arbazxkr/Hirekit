@@ -126,3 +126,27 @@ export async function getChatHistory(userEmail: string, sessionId: string, limit
     if (error) throw new Error(error.message);
     return data || [];
 }
+
+// ─── Resume History ───
+export async function saveResume(email: string, jobTitle: string, resumeText: string) {
+    const db = getSupabase();
+    const { data, error } = await db
+        .from("resumes")
+        .insert({ user_email: email, job_title: jobTitle, resume_text: resumeText })
+        .select()
+        .single();
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+export async function getResumes(email: string) {
+    const db = getSupabase();
+    const { data, error } = await db
+        .from("resumes")
+        .select("*")
+        .eq("user_email", email)
+        .order("created_at", { ascending: false })
+        .limit(20);
+    if (error) throw new Error(error.message);
+    return data || [];
+}

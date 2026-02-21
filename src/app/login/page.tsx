@@ -136,7 +136,10 @@ export default function LoginPage() {
                     color: "#aaa",
                     margin: 0,
                 }}>
-                    By continuing, you agree to our Terms of Service
+                    By continuing, you agree to our{" "}
+                    <a href="/terms" style={{ color: "#888", textDecoration: "underline" }}>Terms</a>
+                    {" "}and{" "}
+                    <a href="/privacy" style={{ color: "#888", textDecoration: "underline" }}>Privacy Policy</a>
                 </p>
             </div>
         </div>

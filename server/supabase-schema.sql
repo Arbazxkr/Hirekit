@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS chat_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Resume history
+CREATE TABLE IF NOT EXISTS resumes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  job_title TEXT NOT NULL,
+  resume_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
@@ -80,3 +89,4 @@ CREATE INDEX IF NOT EXISTS idx_subs_email ON subscriptions(email);
 CREATE INDEX IF NOT EXISTS idx_usage_email_date ON usage(email, date);
 CREATE INDEX IF NOT EXISTS idx_apps_email ON applications(user_email);
 CREATE INDEX IF NOT EXISTS idx_chat_email_session ON chat_history(user_email, session_id);
+CREATE INDEX IF NOT EXISTS idx_resumes_email ON resumes(user_email);
