@@ -24,7 +24,15 @@ const limiter = rateLimit({
 });
 
 // Middleware
-app.use(cors());
+app.set("trust proxy", 1); // Render runs behind a proxy
+app.use(cors({
+    origin: [
+        "https://megusta.world",
+        "https://www.megusta.world",
+        "http://localhost:3000",
+    ],
+    credentials: true,
+}));
 app.use(express.json({ limit: "10mb" }));
 app.use(limiter);
 
