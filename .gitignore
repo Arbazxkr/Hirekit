@@ -6,3 +6,5 @@ dist/
 *.log
 .DS_Store
 openclaw-ref/
+.vercel
+.env*.local

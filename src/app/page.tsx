@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResumePreview } from "@/components/ResumePreview";
 
@@ -45,6 +45,14 @@ interface PlanSummary {
 }
 
 export default function Home() {
+    return (
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
+            <HomeInner />
+        </Suspense>
+    );
+}
+
+function HomeInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [user, setUser] = useState<Record<string, string> | null>(null);
@@ -319,7 +327,7 @@ export default function Home() {
             }
 
             case "SHOW_PLAN": {
-                const r = msg.result as PlanSummary;
+                const r = msg.result as unknown as PlanSummary;
                 if (!r?.plan) return null;
                 const planColors: Record<string, string> = { free: "#888", pro: "#3b82f6", premium: "#8b5cf6" };
                 return (
