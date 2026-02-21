@@ -152,7 +152,9 @@ export default function ProfilePage() {
                     </a>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <a href="/" style={{ fontSize: 13, color: "#3b82f6", textDecoration: "none" }}>← Chat</a>
+                    <a href="/" style={{ fontSize: 13, color: "#555", textDecoration: "none", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to Chat
+                    </a>
                     <button onClick={handleLogout} style={{ fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer" }}>Logout</button>
                 </div>
             </header>
@@ -248,7 +250,9 @@ export default function ProfilePage() {
                             <div style={{ background: "#fff", borderRadius: 16, padding: 40, textAlign: "center", color: "#888", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                                 <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
                                 <p>No resumes yet. Go to chat and ask &ldquo;Build me a resume&rdquo;!</p>
-                                <a href="/" style={{ color: "#3b82f6", fontSize: 14 }}>← Go to Chat</a>
+                                <a href="/" style={{ color: "#555", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontWeight: 500 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Go to Chat
+                                </a>
                             </div>
                         ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -294,7 +298,9 @@ export default function ProfilePage() {
                             <div style={{ padding: 40, textAlign: "center", color: "#888" }}>
                                 <div style={{ fontSize: 40, marginBottom: 12 }}>💼</div>
                                 <p>No applications yet. Find jobs in chat and auto-apply!</p>
-                                <a href="/" style={{ color: "#3b82f6", fontSize: 14 }}>← Go to Chat</a>
+                                <a href="/" style={{ color: "#555", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontWeight: 500 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Go to Chat
+                                </a>
                             </div>
                         ) : (
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

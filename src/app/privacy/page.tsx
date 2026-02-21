@@ -8,7 +8,9 @@ export const metadata: Metadata = {
 export default function Privacy() {
     return (
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 20px 80px", fontFamily: "Inter, sans-serif", color: "#333", lineHeight: 1.9 }}>
-            <a href="/" style={{ color: "#3b82f6", textDecoration: "none", fontSize: 14 }}>← Back to HireKit</a>
+            <a href="/" style={{ color: "#555", textDecoration: "none", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to HireKit
+            </a>
             <h1 style={{ fontSize: 32, fontWeight: 700, margin: "24px 0 8px" }}>Privacy Policy</h1>
             <p style={{ color: "#888", fontSize: 14 }}>Effective Date: February 22, 2026 &nbsp;|&nbsp; Last Updated: February 22, 2026</p>
 
@@ -99,9 +101,13 @@ export default function Privacy() {
             </p>
 
             <div style={{ marginTop: 48, borderTop: "1px solid #eee", paddingTop: 20 }}>
-                <a href="/" style={{ color: "#3b82f6", textDecoration: "none", fontSize: 14 }}>← Back to HireKit</a>
+                <a href="/" style={{ color: "#555", textDecoration: "none", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to HireKit
+                </a>
                 &nbsp;&nbsp;&nbsp;
-                <a href="/terms" style={{ color: "#3b82f6", textDecoration: "none", fontSize: 14 }}>Terms of Service →</a>
+                <a href="/terms" style={{ color: "#555", textDecoration: "none", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
+                    Terms of Service <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
             </div>
         </div>
     );
