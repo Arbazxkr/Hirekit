@@ -127,6 +127,34 @@ export async function getChatHistory(userEmail: string, sessionId: string, limit
     return data || [];
 }
 
+export async function getChatSessions(userEmail: string) {
+    const db = getSupabase();
+    // Fetch all user messages to group into sessions (latest first)
+    const { data, error } = await db
+        .from("chat_history")
+        .select("session_id, content, created_at")
+        .eq("user_email", userEmail)
+        .eq("role", "user")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+    if (error) throw new Error(error.message);
+
+    // Group by unique session ID, using their first message as the title
+    const sessions = new Map();
+    for (const row of (data || [])) {
+        if (!sessions.has(row.session_id)) {
+            sessions.set(row.session_id, {
+                id: row.session_id,
+                title: row.content.substring(0, 30) + (row.content.length > 30 ? "..." : ""),
+                updatedAt: row.created_at,
+            });
+        }
+    }
+
+    return Array.from(sessions.values());
+}
+
 // ─── Resume History ───
 export async function saveResume(email: string, jobTitle: string, resumeText: string) {
     const db = getSupabase();

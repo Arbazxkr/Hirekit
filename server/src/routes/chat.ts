@@ -248,3 +248,29 @@ chatRouter.post("/", async (req, res) => {
         });
     }
 });
+
+import { authMiddleware } from "../services/auth";
+import { getChatSessions, getChatHistory } from "../services/database";
+
+// GET /api/chat/sessions
+chatRouter.get("/sessions", authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user;
+        const sessions = await getChatSessions(user.email);
+        res.json({ sessions });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+// GET /api/chat/history/:sessionId
+chatRouter.get("/history/:sessionId", authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user;
+        const { sessionId } = req.params;
+        const history = await getChatHistory(user.email, sessionId, 100);
+        res.json({ history });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});

@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResumePreview } from "@/components/ResumePreview";
+import { useTheme } from "next-themes";
+import { Menu, X, Plus, LogOut, User as UserIcon, Monitor, Moon, Sun, Paperclip, Send, PanelLeft, SquarePen, Globe, Book, Image as ImageIcon, ArrowUp } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -14,39 +16,15 @@ interface ChatMessage {
     result?: Record<string, unknown>;
 }
 
-interface Job {
+interface ChatSession {
     id: string;
     title: string;
-    company: string;
-    location: string;
-    salary_min?: number;
-    salary_max?: number;
-    description: string;
-    url: string;
-}
-
-interface Application {
-    id: string;
-    job_title: string;
-    company: string;
-    status: string;
-    applied_at: string;
-    job_url: string;
-}
-
-interface PlanSummary {
-    plan: string;
-    today: {
-        chats: { used: number; limit: number };
-        applies: { used: number; limit: number };
-        resumes: { used: number; limit: number };
-        uploads: { used: number; limit: number };
-    };
+    updatedAt: string;
 }
 
 export default function Home() {
     return (
-        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen bg-white dark:bg-[#212121] text-zinc-500">Loading...</div>}>
             <HomeInner />
         </Suspense>
     );
@@ -55,65 +33,115 @@ export default function Home() {
 function HomeInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { theme, setTheme } = useTheme();
+
     const [user, setUser] = useState<Record<string, string> | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+
+    // UI state
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [sessionId] = useState(() => Date.now().toString());
+    const [sessionId, setSessionId] = useState("");
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [welcomeMsg, setWelcomeMsg] = useState<ChatMessage | null>(null);
+
     const bottomRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Check auth
+    // Initial load
     useEffect(() => {
         const stored = localStorage.getItem("hirekit_user");
-        if (!stored) {
+        const token = localStorage.getItem("hirekit_token");
+        if (!stored || !token) {
             router.push("/login");
             return;
         }
         const u = JSON.parse(stored);
         setUser(u);
 
-        // Welcome message
-        const upgraded = searchParams.get("upgraded");
-        const welcome: ChatMessage = upgraded
-            ? {
-                id: "welcome",
-                role: "assistant",
-                content: `🎉 Welcome to Pro! You now have:\n✅ 100 chats/day\n✅ 20 auto-applies/day\n✅ All locations (India + Gulf + Remote)\nWhat would you like to do first?`,
-                action: "NONE",
-            }
-            : {
-                id: "welcome",
-                role: "assistant",
-                content: `👋 Hi ${u.name?.split(" ")[0] || "there"}! I'm HireKit AI.\nTell me about yourself — your profession, experience, and where you want to work.\nI'll find you jobs and apply automatically!`,
-                action: "NONE",
-            };
-        setMessages([welcome]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        // Fetch past sessions
+        fetch(`${API_URL}/api/chat/sessions`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.sessions) setSessions(data.sessions);
+            })
+            .catch(console.error);
+
+        startNewChat(u);
+
+        // Auto-close sidebar on mobile
+        if (window.innerWidth < 768) setSidebarOpen(false);
+    }, [router, searchParams]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Send message
+    const startNewChat = (u: Record<string, string>) => {
+        const newId = Date.now().toString();
+        setSessionId(newId);
+
+        const upgraded = searchParams.get("upgraded");
+        const jokes = [
+            `They say AI will take your job... but right now, I'm just here to apply for them on your behalf! 😂\nWhat's your profession and target role?`,
+            `Beep boop! 🤖 I'm HireKit AI. Give me your dream role, and I'll find you jobs while you grab coffee ☕.`,
+            `👋 Hi ${u?.name?.split(" ")[0] || "there"}! Let's get you hired before the next AI update takes over completely. 😉\nWhat kind of jobs are you looking for?`,
+            `I'm like ChatGPT, but instead of writing poems, I write resumes and click "Apply". 😎\nTell me about your experience!`,
+        ];
+        const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
+
+        const msg: ChatMessage = upgraded
+            ? { id: "welcome", role: "assistant", content: `🎉 Welcome to Pro! You now have:\n✅ 100 chats/day\n✅ 20 auto-applies/day\n✅ All locations (India + Gulf + Remote)\nWhat would you like to do first?`, action: "NONE" }
+            : { id: "welcome", role: "assistant", content: randomJoke, action: "NONE" };
+
+        setMessages([msg]);
+        setWelcomeMsg(msg);
+        if (window.innerWidth < 768) setSidebarOpen(false);
+    };
+
+    const loadSession = async (id: string) => {
+        const token = localStorage.getItem("hirekit_token");
+        if (!token) return;
+        setSessionId(id);
+        setLoading(true);
+        if (window.innerWidth < 768) setSidebarOpen(false);
+        try {
+            const res = await fetch(`${API_URL}/api/chat/history/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.history) {
+                setMessages(data.history.map((h: any) => ({
+                    id: h.id, role: h.role, content: h.content, action: "NONE"
+                })));
+            }
+        } catch (err) {
+            console.error(err);
+        }
+        setLoading(false);
+    };
+
     const send = async (text?: string) => {
         const msg = (text || input).trim();
         if (!msg || loading) return;
 
         const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: msg };
-        setMessages((prev) => [...prev, userMsg]);
+        setMessages(prev => [...prev, userMsg]);
         setInput("");
         setLoading(true);
 
         try {
+            const token = localStorage.getItem("hirekit_token");
             const res = await fetch(`${API_URL}/api/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({
                     message: msg,
-                    history: messages.map((m) => ({ role: m.role, content: m.content })),
+                    history: messages.map(m => ({ role: m.role, content: m.content })),
                     email: user?.email,
                     sessionId,
                 }),
@@ -129,266 +157,52 @@ function HomeInner() {
                 action: data.action,
                 result: data.result,
             };
-            setMessages((prev) => [...prev, aiMsg]);
+            setMessages(prev => [...prev, aiMsg]);
+
+            // Refresh sessions list if it was a new chat
+            if (messages.length <= 1) {
+                fetch(`${API_URL}/api/chat/sessions`, { headers: { Authorization: `Bearer ${token}` } })
+                    .then(r => r.json()).then(d => { if (d.sessions) setSessions(d.sessions); });
+            }
         } catch (err) {
-            setMessages((prev) => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: `Something went wrong. ${(err as Error).message}`,
-                action: "NONE",
-            }]);
+            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Failed: ${(err as Error).message}` }]);
         }
         setLoading(false);
     };
 
-    // File upload
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setUploading(true);
-
         try {
             const formData = new FormData();
             formData.append("file", file);
             const res = await fetch(`${API_URL}/api/upload`, { method: "POST", body: formData });
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
+            const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: `📎 Uploaded: ${data.name}` };
+            setMessages(prev => [...prev, userMsg]);
 
-            const userMsg: ChatMessage = {
-                id: Date.now().toString(),
-                role: "user",
-                content: `📎 Uploaded: ${data.name}`,
-            };
-            setMessages((prev) => [...prev, userMsg]);
-
-            // Send to AI
             setLoading(true);
+            const token = localStorage.getItem("hirekit_token");
             const chatRes = await fetch(`${API_URL}/api/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({
                     message: `I uploaded "${data.name}". Content:\n${(data.text as string).slice(0, 3000)}`,
-                    history: messages.map((m) => ({ role: m.role, content: m.content })),
+                    history: messages.map(m => ({ role: m.role, content: m.content })),
                     email: user?.email,
                     sessionId,
                 }),
             });
             const chatData = await chatRes.json();
-            setMessages((prev) => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: chatData.message,
-                action: chatData.action,
-                result: chatData.result,
-            }]);
+            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", ...chatData }]);
         } catch (err) {
-            setMessages((prev) => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: `Failed to process file. ${(err as Error).message}`,
-            }]);
+            setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Failed to process file.` }]);
         }
-
         setUploading(false);
         setLoading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
-    };
-
-    const handleKey = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-    };
-
-    const showChips = messages.length <= 1;
-
-    // --- Render action results ---
-    const renderResult = (msg: ChatMessage) => {
-        if (!msg.action || msg.action === "NONE" || !msg.result) return null;
-
-        switch (msg.action) {
-            case "SEARCH_JOBS": {
-                const jobs = (msg.result as { jobs: Job[] }).jobs || [];
-                if (!jobs.length) return null;
-                return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10, maxWidth: 500 }}>
-                        {jobs.slice(0, 8).map((job) => (
-                            <div key={job.id} style={{
-                                border: "1px solid #e5e5e5", borderRadius: 12, padding: 14,
-                                background: "#fafafa",
-                            }}>
-                                <div style={{ fontWeight: 600, fontSize: 14, color: "#111" }}>💼 {job.title}</div>
-                                <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
-                                    {job.company} • {job.location}
-                                </div>
-                                {job.salary_min && (
-                                    <div style={{ fontSize: 13, color: "#22c55e", marginTop: 2 }}>
-                                        ₹{Math.round(job.salary_min / 1000)}K - ₹{Math.round((job.salary_max || job.salary_min) / 1000)}K
-                                    </div>
-                                )}
-                                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                                    <a href={job.url} target="_blank" rel="noopener noreferrer" style={{
-                                        padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        border: "1px solid #ddd", color: "#333", textDecoration: "none", background: "#fff",
-                                    }}>View Job</a>
-                                    <button onClick={() => send(`Apply to ${job.url}`)} style={{
-                                        padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                        border: "none", background: "#111", color: "#fff", cursor: "pointer",
-                                    }}>Auto Apply</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                );
-            }
-
-            case "BUILD_RESUME": {
-                const resume = (msg.result as { resume: string }).resume;
-                if (!resume) return null;
-                return <ResumePreview resumeText={resume} />;
-            }
-
-            case "SCORE_RESUME": {
-                const r = msg.result as { score: number; feedback: string[]; missing: string[] };
-                const color = r.score >= 80 ? "#22c55e" : r.score >= 60 ? "#f59e0b" : "#ef4444";
-                return (
-                    <div style={{ marginTop: 10, padding: 16, border: "1px solid #e5e5e5", borderRadius: 12, background: "#fafafa", maxWidth: 400 }}>
-                        <div style={{ fontSize: 48, fontWeight: 800, color, textAlign: "center" }}>{r.score}</div>
-                        <div style={{ textAlign: "center", fontSize: 13, color: "#888", marginBottom: 12 }}>ATS Score out of 100</div>
-                        {r.feedback?.length > 0 && (
-                            <div style={{ fontSize: 13, color: "#333" }}>
-                                <strong>Feedback:</strong>
-                                <ul style={{ margin: "4px 0", paddingLeft: 16 }}>
-                                    {r.feedback.map((f, i) => <li key={i}>{f}</li>)}
-                                </ul>
-                            </div>
-                        )}
-                        {r.missing?.length > 0 && (
-                            <div style={{ fontSize: 13, color: "#ef4444", marginTop: 8 }}>
-                                <strong>Missing keywords:</strong> {r.missing.join(", ")}
-                            </div>
-                        )}
-                    </div>
-                );
-            }
-
-            case "AUTO_APPLY": {
-                const r = msg.result as { success: boolean; message: string };
-                return (
-                    <div style={{
-                        marginTop: 10, padding: 12, borderRadius: 10,
-                        background: r.success ? "#f0fdf4" : "#fef2f2",
-                        border: `1px solid ${r.success ? "#bbf7d0" : "#fecaca"}`,
-                        fontSize: 13,
-                    }}>
-                        {r.success ? "✅" : "❌"} {r.message}
-                    </div>
-                );
-            }
-
-            case "SHOW_APPLICATIONS": {
-                const apps = (msg.result as { applications: Application[] }).applications || [];
-                if (!apps.length) return <div style={{ fontSize: 13, color: "#888", marginTop: 8 }}>No applications yet.</div>;
-                return (
-                    <div style={{ marginTop: 10, overflowX: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                            <thead>
-                                <tr style={{ borderBottom: "1px solid #e5e5e5" }}>
-                                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#888" }}>Job</th>
-                                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#888" }}>Company</th>
-                                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#888" }}>Status</th>
-                                    <th style={{ textAlign: "left", padding: "6px 8px", color: "#888" }}>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {apps.map((app) => {
-                                    const statusColors: Record<string, string> = {
-                                        applied: "#3b82f6", interview: "#f59e0b", rejected: "#ef4444",
-                                        offer: "#22c55e", pending: "#888",
-                                    };
-                                    return (
-                                        <tr key={app.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                                            <td style={{ padding: "8px" }}>{app.job_title}</td>
-                                            <td style={{ padding: "8px" }}>{app.company}</td>
-                                            <td style={{ padding: "8px" }}>
-                                                <span style={{
-                                                    padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600,
-                                                    background: statusColors[app.status] || "#888", color: "#fff",
-                                                }}>{app.status}</span>
-                                            </td>
-                                            <td style={{ padding: "8px", color: "#888" }}>
-                                                {new Date(app.applied_at).toLocaleDateString()}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                );
-            }
-
-            case "SHOW_PLAN": {
-                const r = msg.result as unknown as PlanSummary;
-                if (!r?.plan) return null;
-                const planColors: Record<string, string> = { free: "#888", pro: "#3b82f6", premium: "#8b5cf6" };
-                return (
-                    <div style={{
-                        marginTop: 10, padding: 16, border: "1px solid #e5e5e5", borderRadius: 12,
-                        background: "#fafafa", maxWidth: 320,
-                    }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: planColors[r.plan] || "#333", marginBottom: 10 }}>
-                            Your Plan: {r.plan.toUpperCase()}
-                        </div>
-                        {r.today && (
-                            <div style={{ fontSize: 13, color: "#555", lineHeight: 1.8 }}>
-                                Chats: {r.today.chats.used}/{r.today.chats.limit === -1 ? "∞" : r.today.chats.limit} today<br />
-                                Applies: {r.today.applies.used}/{r.today.applies.limit === -1 ? "∞" : r.today.applies.limit} today<br />
-                                Resumes: {r.today.resumes.used}/{r.today.resumes.limit === -1 ? "∞" : r.today.resumes.limit} today
-                            </div>
-                        )}
-                        {r.plan === "free" && (
-                            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                                <button onClick={() => handleUpgrade("pro")} style={{
-                                    padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                    border: "none", background: "#3b82f6", color: "#fff", cursor: "pointer",
-                                }}>Upgrade Pro ₹499</button>
-                                <button onClick={() => handleUpgrade("premium")} style={{
-                                    padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                                    border: "none", background: "#8b5cf6", color: "#fff", cursor: "pointer",
-                                }}>Premium ₹999</button>
-                            </div>
-                        )}
-                    </div>
-                );
-            }
-
-            case "SAVE_PROFILE":
-                return (
-                    <div style={{
-                        marginTop: 8, padding: "6px 12px", borderRadius: 8,
-                        background: "#f0fdf4", border: "1px solid #bbf7d0",
-                        fontSize: 12, color: "#166534", display: "inline-block",
-                    }}>
-                        ✅ Profile saved!
-                    </div>
-                );
-
-            default:
-                return null;
-        }
-    };
-
-    const handleUpgrade = async (plan: string) => {
-        try {
-            const res = await fetch(`${API_URL}/api/subscription/checkout`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan, email: user?.email }),
-            });
-            const data = await res.json();
-            if (data.url) window.location.href = data.url;
-        } catch (err) {
-            console.error("Upgrade error:", err);
-        }
     };
 
     const handleLogout = () => {
@@ -397,145 +211,223 @@ function HomeInner() {
         router.push("/login");
     };
 
+    const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
     if (!user) return null;
 
-    return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#fff" }}>
-            {/* Header */}
-            <header style={{
-                padding: "10px 20px", borderBottom: "1px solid #eee",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <img src="/logo.png" alt="HireKit" style={{ width: 28, height: 28 }} />
-                    <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <a href="/profile" style={{ display: "flex", alignItems: "center" }}>
-                        {user.avatar ? (
-                            <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%", cursor: "pointer" }} />
-                        ) : (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#888", cursor: "pointer" }}>{(user.name || "?")[0]}</div>
-                        )}
-                    </a>
-                    <button onClick={handleLogout} style={{
-                        fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer",
-                    }}>Logout</button>
-                </div>
-            </header>
+    const renderResult = (msg: ChatMessage) => {
+        if (!msg.action || msg.action === "NONE" || !msg.result) return null;
 
-            {/* Messages */}
-            <main style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
-                <div style={{ maxWidth: 700, margin: "0 auto" }}>
-                    {messages.map((msg) => (
-                        <div key={msg.id} style={{
-                            display: "flex", gap: 10, marginBottom: 20,
-                            flexDirection: msg.role === "user" ? "row-reverse" : "row",
-                        }}>
-                            {msg.role === "assistant" && (
-                                <img src="/logo.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
-                            )}
-                            <div style={{ maxWidth: "85%" }}>
-                                <div style={{
-                                    padding: "10px 14px", borderRadius: 16, fontSize: 14, lineHeight: 1.6,
-                                    whiteSpace: "pre-wrap",
-                                    background: msg.role === "user" ? "#111" : "#f4f4f4",
-                                    color: msg.role === "user" ? "#fff" : "#111",
-                                    borderBottomRightRadius: msg.role === "user" ? 4 : 16,
-                                    borderBottomLeftRadius: msg.role === "assistant" ? 4 : 16,
-                                }}>
-                                    {msg.content}
+        switch (msg.action) {
+            case "SEARCH_JOBS": {
+                const jobs = (msg.result as any).jobs || [];
+                if (!jobs.length) return null;
+                return (
+                    <div className="flex flex-col gap-2 mt-3 max-w-lg">
+                        {jobs.slice(0, 8).map((job: any) => (
+                            <div key={job.id} className="border border-zinc-200 dark:border-zinc-700 rounded-xl p-3.5 bg-zinc-50 dark:bg-zinc-800/50">
+                                <div className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">💼 {job.title}</div>
+                                <div className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-1">{job.company} • {job.location}</div>
+                                {job.salary_min && (
+                                    <div className="text-[13px] text-green-600 dark:text-green-500 mt-0.5">₹{Math.round(job.salary_min / 1000)}K - ₹{Math.round((job.salary_max || job.salary_min) / 1000)}K</div>
+                                )}
+                                <div className="flex gap-2 mt-3">
+                                    <a href={job.url} target="_blank" rel="noopener noreferrer" className="px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-zinc-300 dark:border-zinc-600 text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition">View Job</a>
+                                    <button onClick={() => send(`Apply to ${job.url}`)} className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#212121] dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-black dark:hover:bg-white transition">Auto Apply</button>
                                 </div>
-                                {msg.role === "assistant" && renderResult(msg)}
                             </div>
-                        </div>
-                    ))}
-
-                    {/* Loading */}
-                    {loading && (
-                        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-                            <img src="/logo.png" alt="AI" style={{ width: 28, height: 28 }} />
-                            <div style={{ padding: "10px 14px", background: "#f4f4f4", borderRadius: 16, fontSize: 14 }}>
-                                <span className="dot-pulse">⏳ Thinking...</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Suggestion chips */}
-                    {showChips && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
-                            {["I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?"].map((chip) => (
-                                <button key={chip} onClick={() => send(chip)} style={{
-                                    padding: "8px 16px", borderRadius: 20, border: "1px solid #ddd",
-                                    background: "#fff", fontSize: 13, cursor: "pointer", color: "#555",
-                                    transition: "all 0.15s",
-                                }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f4f4"; e.currentTarget.style.borderColor = "#bbb"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#ddd"; }}
-                                >{chip}</button>
-                            ))}
-                        </div>
-                    )}
-
-                    <div ref={bottomRef} />
+                        ))}
+                    </div>
+                );
+            }
+            case "BUILD_RESUME": return <ResumePreview resumeText={(msg.result as any).resume} />;
+            case "SCORE_RESUME": return (
+                <div className="mt-3 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 max-w-sm">
+                    <div className="text-4xl font-extrabold text-center text-blue-600 dark:text-blue-500">{(msg.result as any).score}</div>
+                    <div className="text-center text-[13px] text-zinc-500 dark:text-zinc-400 mb-3">ATS Score out of 100</div>
                 </div>
-            </main>
+            );
+            case "AUTO_APPLY": return (
+                <div className={`mt-3 p-3 rounded-lg text-[13px] ${(msg.result as any).success ? "bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"}`}>
+                    {(msg.result as any).success ? "✅" : "❌"} {(msg.result as any).message}
+                </div>
+            );
+            case "SHOW_APPLICATIONS": return <div className="text-[13px] text-zinc-500 mt-2">Check full applications history in your Profile page.</div>;
+            case "SHOW_PLAN": return <div className="text-[13px] text-zinc-500 mt-2">Check your subscription and limits in the Profile page.</div>;
+            case "SAVE_PROFILE": return <div className="mt-2 px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-[12px] text-green-700 dark:text-green-400 inline-block">✅ Profile saved!</div>;
+            default: return null;
+        }
+    };
 
-            {/* Input */}
-            <div style={{ padding: "12px 16px 20px", borderTop: "1px solid #f0f0f0" }}>
-                <div style={{
-                    maxWidth: 640, margin: "0 auto",
-                    display: "flex", alignItems: "flex-end",
-                    border: "1px solid #d9d9d9", borderRadius: 24,
-                    padding: "4px 6px 4px 10px", background: "#fff",
-                    boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
-                }}>
-                    {/* Upload */}
-                    <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" onChange={handleUpload} style={{ display: "none" }} />
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading || loading} style={{
-                        width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "none",
-                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                        marginBottom: 2, opacity: uploading ? 0.4 : 0.6, transition: "opacity 0.15s",
-                    }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
-                        title="Upload resume or document"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                        </svg>
+    return (
+        <div className="flex h-screen bg-white dark:bg-[#212121] overflow-hidden text-zinc-900 dark:text-zinc-100 selection:bg-blue-100 dark:selection:bg-blue-900">
+            {/* Sidebar (Desktop + Mobile overlay) */}
+            <div className={`fixed inset-y-0 left-0 z-40 w-[260px] bg-[#f9f9f9] dark:bg-[#171717] transform transition-transform duration-300 ease-in-out md:relative ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} flex flex-col ${!sidebarOpen && "md:hidden"}`}>
+
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between p-3 mt-1">
+                    <button onClick={toggleSidebar} className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition" title="Close sidebar">
+                        <PanelLeft size={20} strokeWidth={1.5} />
                     </button>
-
-                    <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKey}
-                        placeholder={uploading ? "Reading file..." : "Message HireKit..."}
-                        rows={1}
-                        disabled={uploading}
-                        style={{
-                            flex: 1, border: "none", outline: "none", resize: "none",
-                            fontSize: 15, padding: "10px 0", lineHeight: 1.5,
-                            maxHeight: 150, fontFamily: "inherit", background: "transparent", color: "#111",
-                        }}
-                    />
-
-                    <button onClick={() => send()} disabled={!input.trim() || loading || uploading} style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        background: input.trim() && !loading ? "#000" : "#e5e5e5",
-                        border: "none", cursor: input.trim() && !loading ? "pointer" : "default",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "background 0.15s", marginBottom: 2,
-                    }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={input.trim() && !loading ? "#fff" : "#999"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="19" x2="12" y2="5" />
-                            <polyline points="5 12 12 5 19 12" />
-                        </svg>
+                    <button onClick={() => startNewChat(user)} className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition" title="New chat">
+                        <SquarePen size={20} strokeWidth={1.5} />
                     </button>
                 </div>
-                <p style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginTop: 8 }}>
-                    HireKit can make mistakes. Verify important information.
-                </p>
+
+                {/* Chat History List */}
+                <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700">
+                    <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-3 px-2 mt-2">Today</div>
+                    <div className="flex flex-col gap-1">
+                        {sessions.map(s => (
+                            <button key={s.id} onClick={() => loadSession(s.id)} className={`text-left px-3 py-2.5 rounded-lg text-sm truncate transition ${s.id === sessionId ? "bg-[#ebebeb] dark:bg-[#212121] font-medium text-zinc-900 dark:text-zinc-100" : "hover:bg-zinc-200/60 dark:hover:bg-[#212121] text-zinc-800 dark:text-zinc-300"}`}>
+                                {s.title}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Sidebar Footer (Profile & Settings) */}
+                <div className="p-3 flex flex-col gap-1 w-full text-sm">
+                    <button onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg font-medium text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-[#212121] transition">
+                        {theme === "dark" ? <Sun size={18} strokeWidth={1.5} /> : theme === "light" ? <Moon size={18} strokeWidth={1.5} /> : <Monitor size={18} strokeWidth={1.5} />}
+                        {theme === "dark" ? "Dark Mode" : theme === "light" ? "Light Mode" : "System Mode"}
+                    </button>
+                    <a href="/profile" className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg font-medium text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-[#212121] transition">
+                        <UserIcon size={18} strokeWidth={1.5} /> Profile & Settings
+                    </a>
+
+                    {/* User Profile Area */}
+                    <div className="mt-2 pt-2 border-t border-zinc-200 dark:border-[#2f2f2f]"></div>
+                    <button onClick={handleLogout} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg font-medium text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-[#212121] transition group">
+                        {user.avatar ? (
+                            <img src={user.avatar} className="w-6 h-6 rounded-full" alt="" />
+                        ) : (
+                            <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold">{(user.name || "?")[0]}</div>
+                        )}
+                        <span className="truncate">{user.name}</span>
+                        <LogOut size={16} strokeWidth={1.5} className="ml-auto opacity-0 group-hover:opacity-100 text-zinc-500 transition-opacity" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Mobile overlay */}
+            {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
+
+            {/* Main Chat Area */}
+            <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#212121] relative">
+                {/* Header (Hidden on large screens when sidebar is open, visible to show toggle) */}
+                {!sidebarOpen && (
+                    <header className="absolute top-0 left-0 right-0 h-14 flex items-center px-4 z-10 bg-gradient-to-b from-white via-white/80 to-transparent dark:from-[#212121] dark:via-[#212121]/80 dark:to-transparent">
+                        <button onClick={toggleSidebar} className="p-2 -ml-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+                            <PanelLeft size={24} strokeWidth={1.5} />
+                        </button>
+                        <div className="ml-2 font-semibold text-[16px] text-zinc-600 dark:text-zinc-300 flex items-center gap-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-lg cursor-pointer transition">
+                            HireKit <span className="text-zinc-400">v1.5</span>
+                        </div>
+                    </header>
+                )}
+                {sidebarOpen && (
+                    <header className="absolute top-0 left-0 right-0 h-14 flex items-center px-4 z-10 md:hidden bg-gradient-to-b from-white via-white/80 to-transparent dark:from-[#212121] dark:via-[#212121]/80 dark:to-transparent">
+                        <button onClick={toggleSidebar} className="p-2 -ml-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">
+                            <Menu size={24} strokeWidth={1.5} />
+                        </button>
+                    </header>
+                )}
+
+                {/* Messages */}
+                <main className="flex-1 overflow-y-auto px-4 pb-4 pt-16 md:px-8">
+                    <div className="max-w-3xl mx-auto flex flex-col gap-8 pb-10">
+                        {messages.length === 0 && (
+                            <div className="flex flex-col items-center justify-center mt-20 mb-10 opacity-50 space-y-4">
+                                <img src="/logo.png" className="w-12 h-12 dark:invert" alt="Logo" />
+                                <h1 className="text-2xl font-semibold">How can I help you today?</h1>
+                            </div>
+                        )}
+                        {messages.map((msg) => (
+                            <div key={msg.id} className="flex gap-4 w-full">
+                                {msg.role === "assistant" ? (
+                                    <div className="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-[#171717] flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                                        <img src="/logo.png" alt="AI" className="w-4 h-4 dark:invert" />
+                                    </div>
+                                ) : (
+                                    <div className="w-8 h-8 shrink-0 invisible md:hidden" /> // Spacer for alignment
+                                )}
+
+                                <div className={`flex flex-col ${msg.role === "user" ? "items-end ml-auto" : "max-w-[90%] md:max-w-[75%]"}`}>
+                                    <div className={`px-5 py-3.5 text-[15px] leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "bg-[#f4f4f4] dark:bg-[#2f2f2f] text-zinc-900 dark:text-zinc-100 rounded-[24px] rounded-br-[8px]" : "bg-transparent text-zinc-900 dark:text-zinc-100"}`}>
+                                        {msg.content}
+                                    </div>
+                                    {msg.role === "assistant" && renderResult(msg)}
+                                </div>
+                            </div>
+                        ))}
+                        {loading && (
+                            <div className="flex gap-4 w-full">
+                                <div className="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-[#171717] flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                                    <img src="/logo.png" alt="AI" className="w-4 h-4 dark:invert" />
+                                </div>
+                                <div className="px-5 py-3.5 text-[15px] font-medium text-zinc-400 animate-pulse">
+                                    <span className="w-2 h-2 bg-zinc-400 rounded-full inline-block mr-1"></span>
+                                    <span className="w-2 h-2 bg-zinc-400 rounded-full inline-block mr-1 animation-delay-150"></span>
+                                    <span className="w-2 h-2 bg-zinc-400 rounded-full inline-block animation-delay-300"></span>
+                                </div>
+                            </div>
+                        )}
+                        {messages.length <= 1 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-auto mx-auto w-full max-w-2xl px-4">
+                                {[
+                                    { t: "I'm a software developer", p: "Looking for jobs in tech" },
+                                    { t: "Looking for Gulf jobs", p: "Remote or onsite opportunities" },
+                                    { t: "Help me build a resume", p: "Using my current profile data" },
+                                    { t: "What can you do?", p: "Explain features and auto-apply tools" }
+                                ].map(chip => (
+                                    <button key={chip.t} onClick={() => send(chip.t)} className="flex flex-col text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800/60 bg-white dark:bg-[#212121] hover:bg-[#f9f9f9] dark:hover:bg-[#2f2f2f] transition-all group">
+                                        <span className="text-[14px] font-medium text-zinc-700 dark:text-zinc-200">{chip.t}</span>
+                                        <span className="text-[12px] text-zinc-400 dark:text-zinc-500 mt-0.5">{chip.p}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <div ref={bottomRef} className="h-6" />
+                    </div>
+                </main>
+
+                {/* Input Area */}
+                <div className="p-4 md:px-8 md:pb-6 bg-transparent">
+                    <div className="max-w-3xl mx-auto relative">
+                        <div className="flex flex-col bg-[#f4f4f4] dark:bg-[#2f2f2f] rounded-[26px] p-2 border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition duration-200 shadow-sm">
+                            <textarea
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                                placeholder={uploading ? "Reading file..." : "Message HireKit..."}
+                                rows={1}
+                                disabled={uploading}
+                                className="w-full max-h-48 px-4 py-3 bg-transparent border-none outline-none resize-none text-[16px] placeholder:text-zinc-500 dark:placeholder:text-zinc-400 font-normal leading-relaxed overflow-y-auto"
+                            />
+                            <div className="flex items-center justify-between px-2 pb-1.5 pt-1">
+                                <div className="flex items-center gap-1.5">
+                                    <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" onChange={handleUpload} className="hidden" />
+                                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading || loading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700/50 disabled:opacity-50 transition">
+                                        <Paperclip size={16} strokeWidth={2} /> <span className="hidden sm:inline">Attach</span>
+                                    </button>
+                                    <button onClick={() => send("Search for remote jobs")} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700/50 transition">
+                                        <Globe size={16} strokeWidth={2} /> Search
+                                    </button>
+                                    <button onClick={() => send("Review my resume")} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700/50 transition">
+                                        <Book size={16} strokeWidth={2} /> Assess
+                                    </button>
+                                </div>
+                                <button onClick={() => send()} disabled={!input.trim() || loading || uploading} className={`flex items-center justify-center w-8 h-8 rounded-full ${input.trim() && !loading ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-[#e5e5e5] dark:bg-[#404040] text-zinc-400 dark:text-zinc-500'} transition-all`}>
+                                    <ArrowUp size={18} strokeWidth={2.5} />
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-center text-[11px] text-zinc-500 dark:text-zinc-400 mt-3 font-medium">
+                            HireKit AI can make mistakes. Verify important facts and jobs output.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );
