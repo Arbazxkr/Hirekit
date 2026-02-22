@@ -734,7 +734,7 @@ ${fileContext}` : fileContext;
                                 {msg.role === "assistant" && (
                                     <img src="/favicon.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
                                 )}
-                                <div style={{ maxWidth: "85%" }}>
+                                <div style={{ maxWidth: "85%", overflow: "hidden" }}>
                                     <div style={{
                                         padding: "10px 14px", borderRadius: 16, fontSize: 14, lineHeight: 1.6,
                                         whiteSpace: "pre-wrap",
@@ -745,7 +745,11 @@ ${fileContext}` : fileContext;
                                     }}>
                                         {msg.content}
                                     </div>
-                                    {msg.role === "assistant" && renderResult(msg)}
+                                    {msg.role === "assistant" && msg.action === "BUILD_RESUME" ? (
+                                        <div style={{ maxWidth: "100%", overflow: "auto" }}>{renderResult(msg)}</div>
+                                    ) : (
+                                        msg.role === "assistant" && renderResult(msg)
+                                    )}
                                 </div>
                             </div>
                         ))}

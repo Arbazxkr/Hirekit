@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Briefcase, FileText } from "lucide-react";
+import { ResumePreview } from "@/components/ResumePreview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -287,16 +288,12 @@ export default function ProfilePage() {
                         {/* Resume preview modal */}
                         {previewResume && (
                             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={() => setPreviewResume(null)}>
-                                <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 640, width: "100%", maxHeight: "80vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
+                                <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 700, width: "100%", maxHeight: "90vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                                         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{previewResume.job_title}</h3>
-                                        <div style={{ display: "flex", gap: 8 }}>
-                                            <button onClick={() => downloadResume(previewResume, "txt")} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 12, border: "none", background: "#111", color: "#fff", cursor: "pointer" }}>📄 TXT</button>
-                                            <button onClick={() => downloadResume(previewResume, "html")} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 12, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>🌐 HTML</button>
-                                            <button onClick={() => setPreviewResume(null)} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 12, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>✕</button>
-                                        </div>
+                                        <button onClick={() => setPreviewResume(null)} style={{ padding: "6px 12px", borderRadius: 6, fontSize: 12, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>✕</button>
                                     </div>
-                                    <pre style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "Georgia, serif", color: "#222", margin: 0 }}>{previewResume.resume_text}</pre>
+                                    <ResumePreview resumeText={previewResume.resume_text} />
                                 </div>
                             </div>
                         )}
