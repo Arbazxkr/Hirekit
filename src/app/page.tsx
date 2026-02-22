@@ -160,6 +160,28 @@ function HomeInner() {
     const bottomRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const loadSessions = async () => {
+        const tk = localStorage.getItem("hirekit_token");
+        if (!tk) return;
+        try {
+            const res = await fetch(`${API_URL}/api/chat/sessions`, { headers: { Authorization: `Bearer ${tk}` } });
+            const data = await res.json();
+            if (data.sessions) {
+                setSessions(data.sessions);
+                const CHIPS_POOL = [
+                    "I'm a software developer", "Looking for Gulf jobs", "Help me build a resume",
+                    "What can you do?", "Find me remote jobs", "I want to work in Dubai",
+                    "Review my resume", "I need interview prep", "Write a cover letter"
+                ];
+                const pastTitles = data.sessions.map((s: any) => s.title.trim()).filter((t: string) => t.length > 5 && t.length <= 40);
+                const uniquePast = Array.from(new Set(pastTitles)) as string[];
+                const selectedPast = uniquePast.slice(0, 2);
+                const mixed = Array.from(new Set([...selectedPast, ...CHIPS_POOL.sort(() => 0.5 - Math.random())]));
+                setSuggestionChips(mixed.slice(0, 4));
+            }
+        } catch (e) { }
+    };
+
     // Check auth
     useEffect(() => {
         const stored = localStorage.getItem("hirekit_user");
@@ -169,6 +191,8 @@ function HomeInner() {
         }
         const u = JSON.parse(stored);
         setUser(u);
+
+        loadSessions(); // Load past chats and generate contextual chips
 
         const WITTY_LINES = [
             "They said AI would steal jobs, but here I am applying for them for you! 🤖",
@@ -180,20 +204,7 @@ function HomeInner() {
         ];
         const randomWitty = WITTY_LINES[Math.floor(Math.random() * WITTY_LINES.length)];
 
-        const CHIPS_POOL = [
-            "I'm a software developer",
-            "Looking for Gulf jobs",
-            "Help me build a resume",
-            "What can you do?",
-            "Find me remote jobs",
-            "I want to work in Dubai",
-            "Review my resume",
-            "I need interview prep",
-            "Write a cover letter",
-            "Search tech jobs in India"
-        ];
 
-        setSuggestionChips([...CHIPS_POOL].sort(() => 0.5 - Math.random()).slice(0, 4));
 
         // Welcome message
         const upgraded = searchParams.get("upgraded");
@@ -218,15 +229,7 @@ function HomeInner() {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const loadSessions = async () => {
-        const tk = localStorage.getItem("hirekit_token");
-        if (!tk) return;
-        try {
-            const res = await fetch(`${API_URL}/api/chat/sessions`, { headers: { Authorization: `Bearer ${tk}` } });
-            const data = await res.json();
-            if (data.sessions) setSessions(data.sessions);
-        } catch (e) { }
-    };
+
 
     const loadSession = async (id: string) => {
         const tk = localStorage.getItem("hirekit_token");
