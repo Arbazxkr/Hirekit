@@ -13,6 +13,205 @@ export interface GeminiResponse {
     data: Record<string, unknown>;
 }
 
+// ─── Multi-Provider Fallback Engine ───
+// Tries: Gemini → Anthropic → OpenAI. First success wins.
+
+async function callWithGemini(systemPrompt: string, userPrompt: string, options: {
+    history?: { role: string; parts: { text: string }[] }[];
+    temperature?: number;
+    maxTokens?: number;
+    jsonMode?: boolean;
+}): Promise<string> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "your_gemini_api_key_here") throw new Error("GEMINI_API_KEY not set");
+
+    const contents = [
+        ...(options.history || []),
+        { role: "user", parts: [{ text: userPrompt }] },
+    ];
+
+    const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+                contents,
+                generationConfig: {
+                    temperature: options.temperature ?? 0.7,
+                    maxOutputTokens: options.maxTokens ?? 4096,
+                    ...(options.jsonMode ? { responseMimeType: "application/json" } : {}),
+                },
+            }),
+        },
+    );
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Gemini ${res.status}: ${err.slice(0, 200)}`);
+    }
+
+    const raw: Record<string, unknown> = await res.json();
+    return (
+        ((raw as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
+            .candidates?.[0]?.content?.parts?.[0]?.text) || ""
+    );
+}
+
+async function callWithAnthropic(systemPrompt: string, userPrompt: string, options: {
+    history?: { role: string; content: string }[];
+    temperature?: number;
+    maxTokens?: number;
+}): Promise<string> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    const messages = [
+        ...(options.history || []).map(m => ({
+            role: m.role === "model" ? "assistant" : m.role,
+            content: m.content,
+        })),
+        { role: "user", content: userPrompt },
+    ];
+
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: options.maxTokens ?? 4096,
+            temperature: options.temperature ?? 0.7,
+            system: systemPrompt,
+            messages,
+        }),
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Anthropic ${res.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await res.json() as { content: { type: string; text: string }[] };
+    return data.content?.[0]?.text || "";
+}
+
+async function callWithOpenAI(systemPrompt: string, userPrompt: string, options: {
+    history?: { role: string; content: string }[];
+    temperature?: number;
+    maxTokens?: number;
+    jsonMode?: boolean;
+}): Promise<string> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+
+    const messages = [
+        { role: "system", content: systemPrompt },
+        ...(options.history || []).map(m => ({
+            role: m.role === "model" ? "assistant" : m.role,
+            content: m.content,
+        })),
+        { role: "user", content: userPrompt },
+    ];
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages,
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.maxTokens ?? 4096,
+            ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
+        }),
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`OpenAI ${res.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await res.json() as { choices: { message: { content: string } }[] };
+    return data.choices?.[0]?.message?.content || "";
+}
+
+// ─── Universal fallback caller ───
+async function callLLM(systemPrompt: string, userPrompt: string, options: {
+    geminiHistory?: { role: string; parts: { text: string }[] }[];
+    chatHistory?: Message[];
+    temperature?: number;
+    maxTokens?: number;
+    jsonMode?: boolean;
+}): Promise<string> {
+    const errors: string[] = [];
+
+    // 1. Try Gemini
+    if (process.env.GEMINI_API_KEY) {
+        try {
+            console.log("[LLM] Trying Gemini...");
+            return await callWithGemini(systemPrompt, userPrompt, {
+                history: options.geminiHistory,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                jsonMode: options.jsonMode,
+            });
+        } catch (e) {
+            errors.push(`Gemini: ${(e as Error).message}`);
+            console.warn("[LLM] Gemini failed:", (e as Error).message);
+        }
+    }
+
+    // 2. Try Anthropic
+    if (process.env.ANTHROPIC_API_KEY) {
+        try {
+            console.log("[LLM] Trying Anthropic...");
+            const historyFormatted = (options.chatHistory || []).map(m => ({
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: m.content,
+            }));
+            return await callWithAnthropic(systemPrompt, userPrompt, {
+                history: historyFormatted,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+            });
+        } catch (e) {
+            errors.push(`Anthropic: ${(e as Error).message}`);
+            console.warn("[LLM] Anthropic failed:", (e as Error).message);
+        }
+    }
+
+    // 3. Try OpenAI
+    if (process.env.OPENAI_API_KEY) {
+        try {
+            console.log("[LLM] Trying OpenAI...");
+            const historyFormatted = (options.chatHistory || []).map(m => ({
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: m.content,
+            }));
+            return await callWithOpenAI(systemPrompt, userPrompt, {
+                history: historyFormatted,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                jsonMode: options.jsonMode,
+            });
+        } catch (e) {
+            errors.push(`OpenAI: ${(e as Error).message}`);
+            console.warn("[LLM] OpenAI failed:", (e as Error).message);
+        }
+    }
+
+    throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
+}
+
+// ─── System Prompt ───
+
 function buildSystemPrompt(ctx: UserContext): string {
     const profileStr = ctx.profile
         ? JSON.stringify(ctx.profile, null, 2)
@@ -65,8 +264,7 @@ SMART FOLLOW-UP RULES:
 - If user says their profession → ask about years of experience in that field
 - If user gives experience → ask about key skills relevant to THEIR profession (not tech skills)
 - If user gives skills + experience → ask where they want to work (India, Gulf, Remote, both?)
-- If user wants to build a resume but hasn't shared their education/certifications → ask about it
-- If user uploads a document, extract ALL useful info from it and fill their profile
+- If user wants to build a resume, explicitly ask for their Full Name, Phone Number, City, LinkedIn URL, and GitHub so the resume looks complete. Let them know they can say "skip". DO NOT trigger BUILD_RESUME until they answer or skip.
 - NEVER do a job search or build resume if you don't have at least: profession and years_experience
 - Ask ONE question at a time, not multiple
 - For Gulf job seekers: ask if they have passport, any Gulf experience, visa status
@@ -81,8 +279,8 @@ DOCUMENT UPLOAD RULES:
 
 ACTIONS you can trigger:
 
-SAVE_PROFILE — when user describes themselves OR when you extract info from uploaded document
-data: { profession, years_experience, skills[], job_location_preference, target_role, target_location, education, resume_text }
+SAVE_PROFILE — when user describes themselves OR when you extract info from uploaded document. If they provide Phone, LinkedIn, or GitHub, combine that into the resume_text field.
+data: { name, profession, years_experience, skills[], job_location_preference, target_role, target_location, education, resume_text }
 
 SEARCH_JOBS — when user asks for jobs (ONLY if you have enough profile info)
 data: { query, location }
@@ -118,54 +316,29 @@ Respond ONLY in this JSON format — no other text:
 {"message": "your reply here", "action": "ACTION_NAME", "data": {}}`;
 }
 
+// ─── Main Chat Function ───
+
 export async function callGemini(
     message: string,
     history: Message[] = [],
     userContext?: UserContext,
 ): Promise<GeminiResponse> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === "your_gemini_api_key_here") {
-        throw new Error("GEMINI_API_KEY not configured");
-    }
-
     const systemPrompt = buildSystemPrompt(
         userContext || { profile: null, plan: "free", chatsRemaining: 5, appliesRemaining: 0 },
     );
 
-    const contents = [
-        ...history.slice(-20).map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }],
-        })),
-        { role: "user", parts: [{ text: message }] },
-    ];
+    const geminiHistory = history.slice(-20).map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+    }));
 
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents,
-                generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 4096,
-                    responseMimeType: "application/json",
-                },
-            }),
-        },
-    );
-
-    if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Gemini error: ${err.slice(0, 200)}`);
-    }
-
-    const raw: Record<string, unknown> = await res.json();
-    const text =
-        ((raw as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
-            .candidates?.[0]?.content?.parts?.[0]?.text) || "";
+    const text = await callLLM(systemPrompt, message, {
+        geminiHistory,
+        chatHistory: history.slice(-20),
+        temperature: 0.7,
+        maxTokens: 4096,
+        jsonMode: true,
+    });
 
     // Parse JSON response
     try {
@@ -176,10 +349,12 @@ export async function callGemini(
             data: parsed.data || {},
         };
     } catch {
-        // If Gemini didn't return valid JSON, wrap it
+        // If LLM didn't return valid JSON, wrap it
         return { message: text || "Something went wrong.", action: "NONE", data: {} };
     }
 }
+
+// ─── Vision (Gemini only — other providers don't have inline image support easily) ───
 
 export async function callGeminiVision(
     prompt: string,
@@ -188,7 +363,7 @@ export async function callGeminiVision(
 ): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "your_gemini_api_key_here") {
-        throw new Error("GEMINI_API_KEY not configured");
+        throw new Error("GEMINI_API_KEY not configured (vision requires Gemini)");
     }
 
     const res = await fetch(
@@ -222,19 +397,23 @@ export async function callGeminiVision(
     return text;
 }
 
-// Generate resume
+// ─── Generate Resume (with fallback) ───
+
 export async function generateResume(
     profile: Record<string, unknown>,
     jobTitle: string,
     jobDescription?: string,
 ): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY!;
     const prompt = `Generate a professional, ATS-friendly resume for:
 PROFILE: ${JSON.stringify(profile)}
 TARGET JOB: ${jobTitle}
 ${jobDescription ? `JOB DESCRIPTION:\n${jobDescription}` : ""}
 
 RULES:
+- Format the output as a beautiful Markdown ATS Resume.
+- Use simple-icons SVG badges for the Contact Section (e.g. ![Email](https://img.shields.io/badge/Email-D14836?style=flat&logo=gmail&logoColor=white) email@link.com, ![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white), ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white), ![Phone](https://img.shields.io/badge/Phone-25D366?style=flat&logo=whatsapp&logoColor=white)).
+- NEVER use fake placeholders like [City, State], [Phone Number], or [LinkedIn URL]. If a piece of contact information or location is missing from the provided PROFILE, completely OMIT that field.
+- If the user's name is just an email prefix (e.g., "arbazbotiphone"), try to capitalize and format it nicely, or fall back to standard text.
 - Detect the person's profession and adapt the resume format accordingly
 - For tech roles: use sections CONTACT, SUMMARY, EXPERIENCE, EDUCATION, SKILLS, PROJECTS
 - For hospitality (waiter, barista, chef, hotel): use CONTACT, SUMMARY, EXPERIENCE, SKILLS, CERTIFICATIONS (food safety, HACCP, etc.)
@@ -244,54 +423,23 @@ RULES:
 - For Gulf jobs: mention visa readiness, passport validity, any Gulf experience
 - Use action verbs relevant to the profession (e.g. "served 200+ customers daily" for hospitality, "managed team of 5" for management)
 - Include quantified achievements where possible
-- Keep to 1 page. Plain text format. ATS-scannable.`;
+- Keep to 1 page. Plain text markdown format. ATS-scannable.`;
 
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
-            }),
-        },
-    );
-
-    const data: Record<string, unknown> = await res.json();
-    return (
-        ((data as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
-            .candidates?.[0]?.content?.parts?.[0]?.text) || "Could not generate resume."
-    );
+    return await callLLM("", prompt, { temperature: 0.5, maxTokens: 4096 });
 }
 
-// Score resume
+// ─── Score Resume (with fallback) ───
+
 export async function scoreResume(
     resumeText: string,
     jobDescription: string,
 ): Promise<{ score: number; feedback: string[]; missing: string[] }> {
-    const apiKey = process.env.GEMINI_API_KEY!;
     const prompt = `Score this resume against the job. Return ONLY JSON:
 {"score": 0-100, "feedback": ["point1","point2"], "missing": ["keyword1","keyword2"]}
 
 RESUME:\n${resumeText}\n\nJOB:\n${jobDescription}`;
 
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: "application/json" },
-            }),
-        },
-    );
-
-    const data: Record<string, unknown> = await res.json();
-    const text =
-        ((data as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
-            .candidates?.[0]?.content?.parts?.[0]?.text) || '{"score":0,"feedback":[],"missing":[]}';
+    const text = await callLLM("", prompt, { temperature: 0.1, maxTokens: 1024, jsonMode: true });
 
     try {
         return JSON.parse(text);
@@ -300,45 +448,29 @@ RESUME:\n${resumeText}\n\nJOB:\n${jobDescription}`;
     }
 }
 
-// Generate cover letter
+// ─── Generate Cover Letter (with fallback) ───
+
 export async function generateCoverLetter(
     profile: Record<string, unknown>,
     jobTitle: string,
     company: string,
 ): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY!;
     const prompt = `Write a professional cover letter for:
 PROFILE: ${JSON.stringify(profile)}
 JOB: ${jobTitle} at ${company}
 
 Keep it concise (3-4 paragraphs), professional, and tailored.`;
 
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-            }),
-        },
-    );
-
-    const data: Record<string, unknown> = await res.json();
-    return (
-        ((data as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
-            .candidates?.[0]?.content?.parts?.[0]?.text) || "Could not generate cover letter."
-    );
+    return await callLLM("", prompt, { temperature: 0.7, maxTokens: 2048 });
 }
 
-// Interview coaching
+// ─── Interview Coaching (with fallback) ───
+
 export async function interviewCoach(
     profile: Record<string, unknown>,
     jobTitle: string,
     company: string,
 ): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY!;
     const prompt = `Generate interview preparation for:
 PROFILE: ${JSON.stringify(profile)}
 JOB: ${jobTitle} at ${company}
@@ -351,21 +483,5 @@ Include:
 
 Be specific and actionable.`;
 
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
-            }),
-        },
-    );
-
-    const data: Record<string, unknown> = await res.json();
-    return (
-        ((data as Record<string, Array<{ content: { parts: Array<{ text: string }> } }>>)
-            .candidates?.[0]?.content?.parts?.[0]?.text) || "Could not generate interview prep."
-    );
+    return await callLLM("", prompt, { temperature: 0.7, maxTokens: 4096 });
 }
