@@ -250,7 +250,7 @@ chatRouter.post("/", async (req, res) => {
 });
 
 import { authMiddleware } from "../services/auth";
-import { getChatSessions, getChatHistory, deleteChatSession } from "../services/database";
+import { getChatSessions, getChatHistory, deleteChatSession, renameChatSession } from "../services/database";
 
 // GET /api/chat/sessions
 chatRouter.get("/sessions", authMiddleware, async (req, res) => {
@@ -281,6 +281,20 @@ chatRouter.delete("/history/:sessionId", authMiddleware, async (req, res) => {
         const user = (req as any).user;
         const { sessionId } = req.params;
         await deleteChatSession(user.email, sessionId);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+// PUT /api/chat/rename
+chatRouter.put("/rename", authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user;
+        const { sessionId, title } = req.body;
+        if (!sessionId || !title) return res.status(400).json({ error: "Missing sessionId or title" });
+        
+        await renameChatSession(user.email, sessionId, title);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: (err as Error).message });

@@ -200,15 +200,40 @@ function HomeInner() {
         setSidebarOpen(false);
     };
 
-    const deleteChat = async () => {
+    const deleteChat = async (idToDelete: string) => {
         const tk = localStorage.getItem("hirekit_token");
         if (!tk) return;
         try {
-            await fetch(`${API_URL}/api/chat/history/${sessionId}`, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } });
-            setMessages([]);
-            setSessionId(Date.now().toString());
+            await fetch(`${API_URL}/api/chat/history/${idToDelete}`, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } });
+            if (sessionId === idToDelete) {
+                setMessages([]);
+                setSessionId(Date.now().toString());
+            }
             loadSessions();
         } catch (e) { }
+    };
+
+    const saveChatRename = async (idToRename: string) => {
+        if (!editChatName.trim()) {
+            setEditingChatId(null);
+            return;
+        }
+        
+        const tk = localStorage.getItem("hirekit_token");
+        if (!tk) return;
+        
+        try {
+            // Optimistic update
+            setSessions(prev => prev.map(s => s.id === idToRename ? { ...s, title: editChatName } : s));
+            
+            await fetch(`${API_URL}/api/chat/rename`, { 
+                method: "PUT", 
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+                body: JSON.stringify({ sessionId: idToRename, title: editChatName })
+            });
+            
+        } catch (e) {}
+        setEditingChatId(null);
     };
 
     // File upload
@@ -650,7 +675,7 @@ ${fileContext}` : fileContext;
                         )}
 
                         <div style={{
-                            display: "flex", alignItems: "center",
+                            display: "flex", alignItems: "center", justifyContent: "center", alignContent: "center",
                             border: "1px solid #d9d9d9", borderRadius: 24,
                             padding: "4px 6px 4px 10px", background: "#fff",
                             boxShadow: "0 1px 6px rgba(0,0,0,0.05)",

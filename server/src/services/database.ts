@@ -190,3 +190,26 @@ export async function getResumes(email: string) {
     if (error) throw new Error(error.message);
     return data || [];
 }
+
+export async function renameChatSession(userEmail: string, sessionId: string, newTitle: string) {
+    const db = getSupabase();
+    // Assuming the title is stored in the very first message 'content' of that session. Let's add a robust implementation.
+    
+    // Grab the first user message for this session
+    const { data: firstMsg } = await db
+        .from("chat_history")
+        .select("id")
+        .eq("user_email", userEmail)
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+        
+    if (firstMsg) {
+        // Just update the content of the very first message
+        await db
+            .from("chat_history")
+            .update({ content: newTitle })
+            .eq("id", firstMsg.id);
+    }
+}
