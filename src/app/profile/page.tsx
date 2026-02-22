@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -14,6 +15,8 @@ interface Profile {
     location: string;
     target_role: string;
     resume_text?: string;
+    username?: string;
+    avatar_url?: string;
 }
 
 interface Resume {
@@ -45,6 +48,8 @@ export default function ProfilePage() {
 
     // Form fields
     const [name, setName] = useState("");
+    const [username, setUsername] = useState("");
+    const [avatarUrl, setAvatarUrl] = useState("");
     const [skills, setSkills] = useState("");
     const [experience, setExperience] = useState("");
     const [education, setEducation] = useState("");
@@ -67,6 +72,8 @@ export default function ProfilePage() {
             if (data.profile) {
                 setProfile(data.profile);
                 setName(data.profile.name || "");
+                setUsername(data.profile.username || "");
+                setAvatarUrl(data.profile.avatar_url || "");
                 setSkills((data.profile.skills || []).join(", "));
                 setExperience(data.profile.experience || "");
                 setEducation(data.profile.education || "");
@@ -91,6 +98,8 @@ export default function ProfilePage() {
                 body: JSON.stringify({
                     email: user.email,
                     name,
+                    username,
+                    avatar_url: avatarUrl,
                     skills: skills.split(",").map(s => s.trim()).filter(Boolean),
                     experience,
                     education,
@@ -155,22 +164,25 @@ export default function ProfilePage() {
                     <a href="/" style={{ fontSize: 13, color: "#555", textDecoration: "none", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Back to Chat
                     </a>
-                    <button onClick={handleLogout} style={{ fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer" }}>Logout</button>
+                    <button onClick={handleLogout} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#888", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
+                        <LogOut size={16} /> Logout
+                    </button>
                 </div>
             </header>
 
             <div style={{ maxWidth: 700, margin: "0 auto", padding: "24px 16px" }}>
                 {/* User card */}
                 <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 20, display: "flex", alignItems: "center", gap: 16 }}>
-                    {user.avatar ? (
-                        <img src={user.avatar} alt="" style={{ width: 56, height: 56, borderRadius: "50%" }} />
+                    {(profile?.avatar_url || user.avatar) ? (
+                        <img src={profile?.avatar_url || user.avatar} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />
                     ) : (
                         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: "#888" }}>
-                            {(user.name || "?")[0].toUpperCase()}
+                            {(profile?.name || user.name || "?")[0].toUpperCase()}
                         </div>
                     )}
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#111" }}>{user.name}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#111" }}>{profile?.name || user.name}</div>
+                        {profile?.username && <div style={{ fontSize: 13, color: "#555", fontWeight: 600 }}>@{profile.username}</div>}
                         <div style={{ fontSize: 13, color: "#888" }}>{user.email}</div>
                     </div>
                     <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: planColors[plan] || "#888", color: "#fff" }}>
@@ -208,6 +220,8 @@ export default function ProfilePage() {
                         {editing ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                 {[
+                                    { label: "Avatar Image URL", value: avatarUrl, set: setAvatarUrl, placeholder: "e.g. https://example.com/me.png" },
+                                    { label: "Username", value: username, set: setUsername, placeholder: "e.g. johndoe" },
                                     { label: "Full Name", value: name, set: setName },
                                     { label: "Target Role", value: targetRole, set: setTargetRole, placeholder: "e.g. Barista, React Developer, Nurse" },
                                     { label: "Skills (comma separated)", value: skills, set: setSkills, placeholder: "e.g. React, Node.js, TypeScript" },
@@ -329,6 +343,6 @@ export default function ProfilePage() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

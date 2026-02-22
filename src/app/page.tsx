@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Paperclip, ArrowUp, X, Menu, Trash2, Plus } from "lucide-react";
+import { Paperclip, ArrowUp, X, Menu, Trash2, Plus, Pin, Pencil } from "lucide-react";
 import { ResumePreview } from "@/components/ResumePreview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -607,9 +607,9 @@ ${fileContext}` : fileContext;
                                             <span style={{ fontSize: 13, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</span>
 
                                             <div style={{ display: "flex", gap: 4, opacity: s.id === sessionId ? 1 : 0.4 }} className="chat-actions">
-                                                <button onClick={(e) => { e.stopPropagation(); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888" }} title="Pin">📌</button>
-                                                <button onClick={(e) => { e.stopPropagation(); setEditChatName(s.title); setEditingChatId(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888" }} title="Rename">✏️</button>
-                                                <button onClick={(e) => { e.stopPropagation(); deleteChat(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#ef4444" }} title="Delete">✕</button>
+                                                <button onClick={(e) => { e.stopPropagation(); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888", display: "flex", alignItems: "center" }} title="Pin"><Pin size={14} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); setEditChatName(s.title); setEditingChatId(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888", display: "flex", alignItems: "center" }} title="Rename"><Pencil size={14} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); deleteChat(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#ef4444", display: "flex", alignItems: "center" }} title="Delete"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
                                     )}
