@@ -288,7 +288,7 @@ data: { query, location }
 BUILD_RESUME — when user wants a resume (ONLY if you have enough profile info)
 data: { job_title, job_description }
 
-SCORE_RESUME — when user wants resume scored
+SCORE_RESUME — when user wants resume scored. If the user only provides a job title (e.g. "Web Developer") instead of a full job description, DO NOT keep asking repeatedly. Instead, generate a standard/typical job description for that role internally and use it for scoring. Only ask for a JD once — if user responds with just a role name, proceed with scoring.
 data: { job_description }
 
 AUTO_APPLY — when user wants to apply
