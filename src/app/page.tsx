@@ -175,7 +175,7 @@ function HomeInner() {
         recognitionRef.current = recognition;
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = "hi-IN"; // Set to Hindi/India for optimal Hindi+English recognition
+        recognition.lang = "en-IN"; // Set to en-IN so Hindi is written in English characters (Hinglish)
 
         recognition.onstart = () => setListening(true);
         recognition.onresult = (event: any) => {
