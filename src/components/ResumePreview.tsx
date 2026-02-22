@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Download, Image } from "lucide-react";
 
 type ResumePreviewProps = {
     resumeText: string;
@@ -100,16 +101,20 @@ export function ResumePreview({ resumeText }: ResumePreviewProps) {
                     background: "#111", color: "#fff", border: "none",
                     borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
                     opacity: downloading ? 0.5 : 1,
+                    display: "flex", alignItems: "center", gap: 6,
+                    transition: "opacity 0.15s",
                 }}>
-                    📄 Download PDF
+                    <Download size={14} strokeWidth={2.5} /> PDF
                 </button>
                 <button onClick={downloadImage} disabled={downloading} style={{
                     padding: "8px 16px", fontSize: 13, fontWeight: 500,
                     background: "#fff", color: "#333", border: "1px solid #ddd",
                     borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
                     opacity: downloading ? 0.5 : 1,
+                    display: "flex", alignItems: "center", gap: 6,
+                    transition: "opacity 0.15s",
                 }}>
-                    🖼️ Download Image
+                    <Image size={14} strokeWidth={2.5} /> Image
                 </button>
             </div>
 
