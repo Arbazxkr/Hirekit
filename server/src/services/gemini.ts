@@ -168,44 +168,44 @@ async function callLLM(systemPrompt: string, userPrompt: string, options: {
         }
     }
 
-    // 2. Try Anthropic
-    if (process.env.ANTHROPIC_API_KEY) {
-        try {
-            console.log("[LLM] Trying Anthropic...");
-            const historyFormatted = (options.chatHistory || []).map(m => ({
-                role: m.role === "assistant" ? "assistant" : "user",
-                content: m.content,
-            }));
-            return await callWithAnthropic(systemPrompt, userPrompt, {
-                history: historyFormatted,
-                temperature: options.temperature,
-                maxTokens: options.maxTokens,
-            });
-        } catch (e) {
-            errors.push(`Anthropic: ${(e as Error).message}`);
-            console.warn("[LLM] Anthropic failed:", (e as Error).message);
-        }
-    }
+    // 2. Try Anthropic (commented out — no credits on key yet)
+    // if (process.env.ANTHROPIC_API_KEY) {
+    //     try {
+    //         console.log("[LLM] Trying Anthropic...");
+    //         const historyFormatted = (options.chatHistory || []).map(m => ({
+    //             role: m.role === "assistant" ? "assistant" : "user",
+    //             content: m.content,
+    //         }));
+    //         return await callWithAnthropic(systemPrompt, userPrompt, {
+    //             history: historyFormatted,
+    //             temperature: options.temperature,
+    //             maxTokens: options.maxTokens,
+    //         });
+    //     } catch (e) {
+    //         errors.push(`Anthropic: ${(e as Error).message}`);
+    //         console.warn("[LLM] Anthropic failed:", (e as Error).message);
+    //     }
+    // }
 
-    // 3. Try OpenAI
-    if (process.env.OPENAI_API_KEY) {
-        try {
-            console.log("[LLM] Trying OpenAI...");
-            const historyFormatted = (options.chatHistory || []).map(m => ({
-                role: m.role === "assistant" ? "assistant" : "user",
-                content: m.content,
-            }));
-            return await callWithOpenAI(systemPrompt, userPrompt, {
-                history: historyFormatted,
-                temperature: options.temperature,
-                maxTokens: options.maxTokens,
-                jsonMode: options.jsonMode,
-            });
-        } catch (e) {
-            errors.push(`OpenAI: ${(e as Error).message}`);
-            console.warn("[LLM] OpenAI failed:", (e as Error).message);
-        }
-    }
+    // 3. Try OpenAI (commented out — no credits on key yet)
+    // if (process.env.OPENAI_API_KEY) {
+    //     try {
+    //         console.log("[LLM] Trying OpenAI...");
+    //         const historyFormatted = (options.chatHistory || []).map(m => ({
+    //             role: m.role === "assistant" ? "assistant" : "user",
+    //             content: m.content,
+    //         }));
+    //         return await callWithOpenAI(systemPrompt, userPrompt, {
+    //             history: historyFormatted,
+    //             temperature: options.temperature,
+    //             maxTokens: options.maxTokens,
+    //             jsonMode: options.jsonMode,
+    //         });
+    //     } catch (e) {
+    //         errors.push(`OpenAI: ${(e as Error).message}`);
+    //         console.warn("[LLM] OpenAI failed:", (e as Error).message);
+    //     }
+    // }
 
     throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
 }
