@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Paperclip, ArrowUp, X, Menu, Trash2, Plus, Pin, Pencil, LogOut } from "lucide-react";
+import { Paperclip, ArrowUp, X, Menu, Trash2, Plus, Pin, Pencil, LogOut, Mic } from "lucide-react";
 import { ResumePreview } from "@/components/ResumePreview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -139,6 +139,8 @@ function HomeInner() {
     const [searchQuery, setSearchQuery] = useState("");
     const [editingChatId, setEditingChatId] = useState<string | null>(null);
     const [editChatName, setEditChatName] = useState("");
+    const [listening, setListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
     const [suggestionChips, setSuggestionChips] = useState<string[]>([
         "I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?",
     ]);
@@ -155,6 +157,35 @@ function HomeInner() {
         document.addEventListener("keydown", handleCmdK);
         return () => document.removeEventListener("keydown", handleCmdK);
     }, []);
+
+    const toggleListen = () => {
+        if (listening) {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            setListening(false);
+            return;
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Your browser does not support voice input. Try Chrome!");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = "hi-IN"; // Set to Hindi/India for optimal Hindi+English recognition
+
+        recognition.onstart = () => setListening(true);
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setInput(prev => prev ? prev + " " + transcript : transcript);
+        };
+        recognition.onerror = () => setListening(false);
+        recognition.onend = () => setListening(false);
+        recognition.start();
+    };
 
     const filteredSessions = sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -804,6 +835,24 @@ ${fileContext}` : fileContext;
                                     maxHeight: 150, fontFamily: "inherit", background: "transparent", color: "#111",
                                 }}
                             />
+
+                            <button onClick={toggleListen} disabled={uploading || loading} style={{
+                                width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "none",
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                opacity: listening ? 1 : 0.6, transition: "0.15s", marginRight: 4, marginBottom: 2,
+                            }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "#f0f0f0"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = listening ? "1" : "0.6"; e.currentTarget.style.background = "transparent"; }}
+                                title="Voice Input"
+                            >
+                                {listening ? (
+                                    <div style={{ background: "#fee2e2", borderRadius: "50%", width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <Mic size={16} color="#ef4444" strokeWidth={2.5} />
+                                    </div>
+                                ) : (
+                                    <Mic size={20} color="#666" strokeWidth={2} />
+                                )}
+                            </button>
 
                             <button onClick={() => send()} disabled={(!input.trim() && !selectedFile) || loading || uploading} style={{
                                 width: 32, height: 32, borderRadius: "50%",
