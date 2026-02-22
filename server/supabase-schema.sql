@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   google_id TEXT,
   avatar_url TEXT,
+  username TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   email TEXT UNIQUE NOT NULL REFERENCES users(email) ON DELETE CASCADE,
   name TEXT NOT NULL,
   avatar_url TEXT,
+  username TEXT,
   skills TEXT[] DEFAULT '{}',
   experience TEXT DEFAULT '',
   education TEXT DEFAULT '',
