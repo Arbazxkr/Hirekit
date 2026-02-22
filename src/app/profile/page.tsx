@@ -156,7 +156,7 @@ export default function ProfilePage() {
             <header style={{ padding: "12px 20px", background: "#fff", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <a href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-                        <img src="/logo.png" alt="" style={{ width: 28, height: 28 }} />
+                        <img src="/favicon.png" alt="" style={{ width: 28, height: 28 }} />
                         <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
                     </a>
                 </div>

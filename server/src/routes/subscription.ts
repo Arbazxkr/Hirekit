@@ -1,15 +1,17 @@
 import { Router } from "express";
-import Stripe from "stripe";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 import { authMiddleware } from "../services/auth";
 import { getUsageSummary } from "../services/subscription";
 import { getSupabase } from "../services/database";
 
 export const subscriptionRouter = Router();
 
-function getStripe(): Stripe {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("STRIPE_SECRET_KEY not set");
-    return new Stripe(key);
+function getRazorpay(): Razorpay {
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!key_id || !key_secret) throw new Error("Razorpay credentials not set in env");
+    return new Razorpay({ key_id, key_secret });
 }
 
 const PLAN_PRICES: Record<string, { amount: number; name: string }> = {
@@ -28,7 +30,7 @@ subscriptionRouter.get("/", authMiddleware, async (req, res) => {
     }
 });
 
-// POST /api/subscription/checkout — create Stripe checkout
+// POST /api/subscription/checkout — create Razorpay payment link
 subscriptionRouter.post("/checkout", async (req, res) => {
     try {
         const { plan, email } = req.body;
@@ -40,83 +42,67 @@ subscriptionRouter.post("/checkout", async (req, res) => {
             return res.status(400).json({ error: "Email required" });
         }
 
-        const stripe = getStripe();
+        const razorpay = getRazorpay();
         const priceInfo = PLAN_PRICES[plan];
 
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            customer_email: email,
-            line_items: [
-                {
-                    price_data: {
-                        currency: "inr",
-                        product_data: { name: priceInfo.name },
-                        unit_amount: priceInfo.amount,
-                        recurring: { interval: "month" },
-                    },
-                    quantity: 1,
-                },
-            ],
-            mode: "subscription",
-            success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/?upgraded=true`,
-            cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/`,
-            metadata: { plan, email },
+        const paymentLink = await razorpay.paymentLink.create({
+            amount: priceInfo.amount,
+            currency: "INR",
+            accept_partial: false,
+            description: priceInfo.name,
+            customer: { email },
+            notify: { email: true },
+            reminder_enable: true,
+            notes: { plan, email },
+            callback_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/?upgraded=true`,
+            callback_method: "get"
         });
 
-        res.json({ url: session.url });
+        res.json({ url: paymentLink.short_url });
     } catch (err) {
         res.status(500).json({ error: (err as Error).message });
     }
 });
 
-// POST /api/subscription/webhook — Stripe webhook
+// POST /api/subscription/webhook — Razorpay webhook
 subscriptionRouter.post("/webhook", async (req, res) => {
     try {
-        const stripe = getStripe();
-        const sig = req.headers["stripe-signature"] as string;
-        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-        if (!webhookSecret) {
+        const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+        if (!secret) {
             return res.status(500).json({ error: "Webhook secret not configured" });
         }
 
-        const rawBody = JSON.stringify(req.body);
-        const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+        const sig = req.headers["x-razorpay-signature"] as string;
+        const body = JSON.stringify(req.body);
+
+        const expectedSig = crypto.createHmac("sha256", secret).update(body).digest("hex");
+
+        if (sig !== expectedSig) {
+            return res.status(400).json({ error: "Invalid signature" });
+        }
+
         const db = getSupabase();
+        const event = req.body;
 
-        switch (event.type) {
-            case "checkout.session.completed": {
-                const session = event.data.object as Stripe.Checkout.Session;
-                const email = session.metadata?.email || session.customer_email;
-                const plan = session.metadata?.plan || "pro";
+        if (event.event === "payment_link.paid") {
+            const paymentLink = event.payload.payment_link.entity;
+            const email = paymentLink.customer?.email || paymentLink.notes?.email;
+            const plan = paymentLink.notes?.plan || "pro";
 
-                if (email) {
-                    const periodEnd = new Date();
-                    periodEnd.setDate(periodEnd.getDate() + 30);
-
-                    await db
-                        .from("subscriptions")
-                        .update({
-                            plan,
-                            status: "active",
-                            stripe_customer_id: session.customer as string,
-                            stripe_subscription_id: session.subscription as string,
-                            current_period_end: periodEnd.toISOString(),
-                        })
-                        .eq("email", email);
-                }
-                break;
-            }
-
-            case "customer.subscription.deleted": {
-                const sub = event.data.object as Stripe.Subscription;
-                const customerId = sub.customer as string;
+            if (email) {
+                const periodEnd = new Date();
+                periodEnd.setDate(periodEnd.getDate() + 30);
 
                 await db
                     .from("subscriptions")
-                    .update({ plan: "free", status: "cancelled" })
-                    .eq("stripe_customer_id", customerId);
-                break;
+                    .update({
+                        plan,
+                        status: "active",
+                        stripe_customer_id: paymentLink.id, // Storing razorpay ID here temporarily to avoid schema changes
+                        stripe_subscription_id: paymentLink.order_id,
+                        current_period_end: periodEnd.toISOString(),
+                    })
+                    .eq("email", email);
             }
         }
 

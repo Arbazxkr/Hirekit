@@ -697,7 +697,7 @@ ${fileContext}` : fileContext;
                         <button onClick={() => { loadSessions(); setSidebarOpen(true); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#666" }}>
                             <Menu size={20} />
                         </button>
-                        <img src="/logo.png" alt="HireKit" style={{ width: 28, height: 28 }} />
+                        <img src="/favicon.png" alt="HireKit" style={{ width: 28, height: 28 }} />
                         <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -728,7 +728,7 @@ ${fileContext}` : fileContext;
                                 flexDirection: msg.role === "user" ? "row-reverse" : "row",
                             }}>
                                 {msg.role === "assistant" && (
-                                    <img src="/logo.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
+                                    <img src="/favicon.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
                                 )}
                                 <div style={{ maxWidth: "85%" }}>
                                     <div style={{
@@ -749,7 +749,7 @@ ${fileContext}` : fileContext;
                         {/* Loading */}
                         {loading && (
                             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-                                <img src="/logo.png" alt="AI" style={{ width: 28, height: 28 }} />
+                                <img src="/favicon.png" alt="AI" style={{ width: 28, height: 28 }} />
                                 <div style={{ padding: "12px 16px", background: "#f4f4f4", borderRadius: 16, display: "flex", alignItems: "center" }}>
                                     <TypingIndicator />
                                 </div>

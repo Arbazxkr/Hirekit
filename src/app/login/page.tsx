@@ -101,7 +101,7 @@ export default function LoginPage() {
             }}>
                 {/* Logo */}
                 <img
-                    src="/logo.png"
+                    src="/favicon.png"
                     alt="HireKit"
                     style={{ width: 64, height: 64, marginBottom: 16 }}
                 />
