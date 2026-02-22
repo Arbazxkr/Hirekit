@@ -670,12 +670,7 @@ ${fileContext}` : fileContext;
                         <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        {messages.length > 0 && (
-                            <button onClick={() => deleteChat(sessionId)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", display: "flex", alignItems: "center", marginRight: 10 }} title="Clear Chat">
-                                <Trash2 size={18} />
-                                <span style={{ fontSize: 13, marginLeft: 6, fontWeight: 500 }}>Clear</span>
-                            </button>
-                        )}
+
                         <a href="/profile" style={{ display: "flex", alignItems: "center" }}>
                             {user.avatar ? (
                                 <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%", cursor: "pointer" }} />
