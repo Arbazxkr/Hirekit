@@ -650,7 +650,7 @@ ${fileContext}` : fileContext;
                         )}
 
                         <div style={{
-                            display: "flex", alignItems: "flex-end",
+                            display: "flex", alignItems: "center",
                             border: "1px solid #d9d9d9", borderRadius: 24,
                             padding: "4px 6px 4px 10px", background: "#fff",
                             boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
