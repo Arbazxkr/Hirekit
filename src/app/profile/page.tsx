@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Briefcase, FileText } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -260,7 +260,7 @@ export default function ProfilePage() {
                     <div>
                         {resumes.length === 0 ? (
                             <div style={{ background: "#fff", borderRadius: 16, padding: 40, textAlign: "center", color: "#888", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                                <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+                                <div style={{ marginBottom: 16 }}><FileText size={36} color="#ccc" strokeWidth={1.5} /></div>
                                 <p>No resumes yet. Go to chat and ask &ldquo;Build me a resume&rdquo;!</p>
                                 <a href="/" style={{ color: "#555", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontWeight: 500 }}>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Go to Chat
@@ -270,7 +270,7 @@ export default function ProfilePage() {
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {resumes.map(r => (
                                     <div key={r.id} style={{ background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", gap: 14 }}>
-                                        <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>📄</div>
+                                        <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", flexShrink: 0 }}><FileText size={20} strokeWidth={2} /></div>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: 14, fontWeight: 600, color: "#111" }}>{r.job_title}</div>
                                             <div style={{ fontSize: 12, color: "#888" }}>{new Date(r.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
@@ -308,7 +308,7 @@ export default function ProfilePage() {
                     <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
                         {applications.length === 0 ? (
                             <div style={{ padding: 40, textAlign: "center", color: "#888" }}>
-                                <div style={{ fontSize: 40, marginBottom: 12 }}>💼</div>
+                                <div style={{ marginBottom: 16 }}><Briefcase size={36} color="#ccc" strokeWidth={1.5} /></div>
                                 <p>No applications yet. Find jobs in chat and auto-apply!</p>
                                 <a href="/" style={{ color: "#555", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontWeight: 500 }}>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> Go to Chat

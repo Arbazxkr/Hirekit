@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Paperclip, ArrowUp, X, Menu, Trash2, Plus, Pin, Pencil } from "lucide-react";
+import { Paperclip, ArrowUp, X, Menu, Trash2, Plus, Pin, Pencil, LogOut } from "lucide-react";
 import { ResumePreview } from "@/components/ResumePreview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -139,6 +139,9 @@ function HomeInner() {
     const [searchQuery, setSearchQuery] = useState("");
     const [editingChatId, setEditingChatId] = useState<string | null>(null);
     const [editChatName, setEditChatName] = useState("");
+    const [suggestionChips, setSuggestionChips] = useState<string[]>([
+        "I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?",
+    ]);
 
     // Command K hotkey logic
     useEffect(() => {
@@ -167,6 +170,31 @@ function HomeInner() {
         const u = JSON.parse(stored);
         setUser(u);
 
+        const WITTY_LINES = [
+            "They said AI would steal jobs, but here I am applying for them for you! 🤖",
+            "Applying to jobs is soul-crushing. Let me be the one getting crushed today. 💼",
+            "I don't need coffee to apply to 50 jobs, just your resume. ☕",
+            "While you sleep, I apply. Let's find your dream job! 🌙",
+            "Let's get you hired before the robots take over. Oh wait... 🤖",
+            "Your personal relentless job-hunting machine reporting for duty! 🫡"
+        ];
+        const randomWitty = WITTY_LINES[Math.floor(Math.random() * WITTY_LINES.length)];
+
+        const CHIPS_POOL = [
+            "I'm a software developer",
+            "Looking for Gulf jobs",
+            "Help me build a resume",
+            "What can you do?",
+            "Find me remote jobs",
+            "I want to work in Dubai",
+            "Review my resume",
+            "I need interview prep",
+            "Write a cover letter",
+            "Search tech jobs in India"
+        ];
+
+        setSuggestionChips([...CHIPS_POOL].sort(() => 0.5 - Math.random()).slice(0, 4));
+
         // Welcome message
         const upgraded = searchParams.get("upgraded");
         const welcome: ChatMessage = upgraded
@@ -179,7 +207,7 @@ function HomeInner() {
             : {
                 id: "welcome",
                 role: "assistant",
-                content: `👋 Hi ${u.name?.split(" ")[0] || "there"}! I'm HireKit AI.\nTell me about yourself — your profession, experience, and where you want to work.\nI'll find you jobs and apply automatically!`,
+                content: `👋 Hi ${u.name?.split(" ")[0] || "there"}! I'm HireKit AI.\n\n${randomWitty}\nTell me about yourself — your profession, experience, and where you want to work. I'll find you jobs and apply automatically!`,
                 action: "NONE",
             };
         setMessages([welcome]);
@@ -203,7 +231,7 @@ function HomeInner() {
     const loadSession = async (id: string) => {
         const tk = localStorage.getItem("hirekit_token");
         if (!tk) return;
-        
+
         try {
             const res = await fetch(`${API_URL}/api/chat/history/${id}`, { headers: { Authorization: `Bearer ${tk}` } });
             const data = await res.json();
@@ -214,7 +242,7 @@ function HomeInner() {
                 })));
             }
         } catch (err) { }
-        
+
         setSidebarOpen(false);
     };
 
@@ -653,8 +681,12 @@ ${fileContext}` : fileContext;
                             )}
                         </a>
                         <button onClick={handleLogout} style={{
-                            fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer",
-                        }}>Logout</button>
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "#888", background: "none", border: "none", cursor: "pointer",
+                            padding: 4
+                        }} title="Logout">
+                            <LogOut size={18} strokeWidth={2.5} />
+                        </button>
                     </div>
                 </header>
 
@@ -698,7 +730,7 @@ ${fileContext}` : fileContext;
                         {/* Suggestion chips */}
                         {showChips && (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
-                                {["I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?"].map((chip) => (
+                                {suggestionChips.map((chip) => (
                                     <button key={chip} onClick={() => send(chip)} style={{
                                         padding: "8px 16px", borderRadius: 20, border: "1px solid #ddd",
                                         background: "#fff", fontSize: 13, cursor: "pointer", color: "#555",
