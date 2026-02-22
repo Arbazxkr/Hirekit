@@ -118,7 +118,7 @@ const renderMessageContent = (content: string) => {
 export default function Home() {
 
     return (
-        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
+        <Suspense fallback={null}>
             <HomeInner />
         </Suspense>
     );
