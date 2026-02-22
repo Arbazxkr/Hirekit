@@ -155,6 +155,16 @@ export async function getChatSessions(userEmail: string) {
     return Array.from(sessions.values());
 }
 
+export async function deleteChatSession(userEmail: string, sessionId: string) {
+    const db = getSupabase();
+    const { error } = await db
+        .from("chat_history")
+        .delete()
+        .eq("user_email", userEmail)
+        .eq("session_id", sessionId);
+    if (error) throw new Error(error.message);
+}
+
 // ─── Resume History ───
 export async function saveResume(email: string, jobTitle: string, resumeText: string) {
     const db = getSupabase();

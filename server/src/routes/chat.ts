@@ -250,7 +250,7 @@ chatRouter.post("/", async (req, res) => {
 });
 
 import { authMiddleware } from "../services/auth";
-import { getChatSessions, getChatHistory } from "../services/database";
+import { getChatSessions, getChatHistory, deleteChatSession } from "../services/database";
 
 // GET /api/chat/sessions
 chatRouter.get("/sessions", authMiddleware, async (req, res) => {
@@ -270,6 +270,18 @@ chatRouter.get("/history/:sessionId", authMiddleware, async (req, res) => {
         const { sessionId } = req.params;
         const history = await getChatHistory(user.email, sessionId, 100);
         res.json({ history });
+    } catch (err) {
+        res.status(500).json({ error: (err as Error).message });
+    }
+});
+
+// DELETE /api/chat/history/:sessionId
+chatRouter.delete("/history/:sessionId", authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user;
+        const { sessionId } = req.params;
+        await deleteChatSession(user.email, sessionId);
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: (err as Error).message });
     }

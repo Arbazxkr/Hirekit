@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Paperclip, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp, X, Menu, Trash2, Plus } from "lucide-react";
 import { ResumePreview } from "@/components/ResumePreview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -45,6 +45,20 @@ interface PlanSummary {
     };
 }
 
+const TypingIndicator = () => (
+    <div style={{ display: "flex", gap: "4px", padding: "4px 2px", alignItems: "center", height: "100%" }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", animation: "pulse 1.5s infinite ease-in-out" }} />
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", animation: "pulse 1.5s infinite ease-in-out 0.2s" }} />
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#888", animation: "pulse 1.5s infinite ease-in-out 0.4s" }} />
+        <style>{`
+            @keyframes pulse {
+                0%, 100% { opacity: 0.4; transform: scale(0.8); }
+                50% { opacity: 1; transform: scale(1.2); }
+            }
+        `}</style>
+    </div>
+);
+
 export default function Home() {
     return (
         <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
@@ -61,7 +75,10 @@ function HomeInner() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [sessionId] = useState(() => Date.now().toString());
+    const [sessionId, setSessionId] = useState(() => Date.now().toString());
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sessions, setSessions] = useState<{ id: string, title: string }[]>([]);
     const bottomRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,22 +115,102 @@ function HomeInner() {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Send message
+    const loadSessions = async () => {
+        const tk = localStorage.getItem("hirekit_token");
+        if (!tk) return;
+        try {
+            const res = await fetch(`${API_URL}/api/chat/sessions`, { headers: { Authorization: `Bearer ${tk}` } });
+            const data = await res.json();
+            if (data.sessions) setSessions(data.sessions);
+        } catch (e) { }
+    };
+
+    const loadSession = async (id: string) => {
+        const tk = localStorage.getItem("hirekit_token");
+        if (!tk) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/api/chat/history/${id}`, { headers: { Authorization: `Bearer ${tk}` } });
+            const data = await res.json();
+            if (data.history) {
+                setSessionId(id);
+                setMessages(data.history.map((h: any) => ({
+                    id: h.id || Date.now().toString(), role: h.role, content: h.content, action: "NONE"
+                })));
+            }
+        } catch (err) { }
+        setLoading(false);
+        setSidebarOpen(false);
+    };
+
+    const deleteChat = async () => {
+        const tk = localStorage.getItem("hirekit_token");
+        if (!tk) return;
+        try {
+            await fetch(`${API_URL}/api/chat/history/${sessionId}`, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } });
+            setMessages([]);
+            setSessionId(Date.now().toString());
+            loadSessions();
+        } catch (e) { }
+    };
+
+    // File upload
     const send = async (text?: string) => {
         const msg = (text || input).trim();
-        if (!msg || loading) return;
+        if ((!msg && !selectedFile) || loading || uploading) return;
 
-        const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: msg };
-        setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setLoading(true);
 
+        const currentFile = selectedFile;
+        setSelectedFile(null); // Clear preview
+
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        const tk = localStorage.getItem("hirekit_token");
+        if (tk) headers["Authorization"] = `Bearer ${tk}`;
+
         try {
+            let uploadedData: any = null;
+
+            if (currentFile) {
+                setUploading(true);
+                const formData = new FormData();
+                formData.append("file", currentFile);
+
+                const uploadUserMsg: ChatMessage = {
+                    id: Date.now().toString() + "_file",
+                    role: "user",
+                    content: `📎 Attached: ${currentFile.name}`,
+                };
+                setMessages((prev) => [...prev, uploadUserMsg]);
+
+                const uploadRes = await fetch(`${API_URL}/api/upload`, { method: "POST", body: formData });
+                if (!uploadRes.ok) throw new Error(await uploadRes.text());
+                uploadedData = await uploadRes.json();
+                setUploading(false);
+            }
+
+            if (msg) {
+                const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: msg };
+                setMessages((prev) => [...prev, userMsg]);
+            }
+
+            const apiMsgData = msg;
+            let aiPayloadMessage = apiMsgData;
+            if (uploadedData) {
+                const fileContext = `I uploaded "${uploadedData.name}". Content:
+${(uploadedData.text as string).slice(0, 3000)}`;
+                aiPayloadMessage = apiMsgData ? `${apiMsgData}
+
+[Attached File Context]
+${fileContext}` : fileContext;
+            }
+
             const res = await fetch(`${API_URL}/api/chat`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
-                    message: msg,
+                    message: aiPayloadMessage || "Read the attached file.",
                     history: messages.map((m) => ({ role: m.role, content: m.content })),
                     email: user?.email,
                     sessionId,
@@ -138,60 +235,14 @@ function HomeInner() {
                 content: `Something went wrong. ${(err as Error).message}`,
                 action: "NONE",
             }]);
+            setUploading(false);
         }
         setLoading(false);
     };
 
-    // File upload
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
-        setUploading(true);
-
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            const res = await fetch(`${API_URL}/api/upload`, { method: "POST", body: formData });
-            if (!res.ok) throw new Error(await res.text());
-            const data = await res.json();
-
-            const userMsg: ChatMessage = {
-                id: Date.now().toString(),
-                role: "user",
-                content: `📎 Uploaded: ${data.name}`,
-            };
-            setMessages((prev) => [...prev, userMsg]);
-
-            // Send to AI
-            setLoading(true);
-            const chatRes = await fetch(`${API_URL}/api/chat`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: `I uploaded "${data.name}". Content:\n${(data.text as string).slice(0, 3000)}`,
-                    history: messages.map((m) => ({ role: m.role, content: m.content })),
-                    email: user?.email,
-                    sessionId,
-                }),
-            });
-            const chatData = await chatRes.json();
-            setMessages((prev) => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: chatData.message,
-                action: chatData.action,
-                result: chatData.result,
-            }]);
-        } catch (err) {
-            setMessages((prev) => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: `Failed to process file. ${(err as Error).message}`,
-            }]);
-        }
-
-        setUploading(false);
-        setLoading(false);
+        if (file) setSelectedFile(file);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -401,137 +452,190 @@ function HomeInner() {
     if (!user) return null;
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#fff" }}>
-            {/* Header */}
-            <header style={{
-                padding: "10px 20px", borderBottom: "1px solid #eee",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <img src="/logo.png" alt="HireKit" style={{ width: 28, height: 28 }} />
-                    <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <a href="/profile" style={{ display: "flex", alignItems: "center" }}>
-                        {user.avatar ? (
-                            <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%", cursor: "pointer" }} />
-                        ) : (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#888", cursor: "pointer" }}>{(user.name || "?")[0]}</div>
-                        )}
-                    </a>
-                    <button onClick={handleLogout} style={{
-                        fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer",
-                    }}>Logout</button>
-                </div>
-            </header>
-
-            {/* Messages */}
-            <main style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
-                <div style={{ maxWidth: 700, margin: "0 auto" }}>
-                    {messages.map((msg) => (
-                        <div key={msg.id} style={{
-                            display: "flex", gap: 10, marginBottom: 20,
-                            flexDirection: msg.role === "user" ? "row-reverse" : "row",
-                        }}>
-                            {msg.role === "assistant" && (
-                                <img src="/logo.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
-                            )}
-                            <div style={{ maxWidth: "85%" }}>
-                                <div style={{
-                                    padding: "10px 14px", borderRadius: 16, fontSize: 14, lineHeight: 1.6,
-                                    whiteSpace: "pre-wrap",
-                                    background: msg.role === "user" ? "#111" : "#f4f4f4",
-                                    color: msg.role === "user" ? "#fff" : "#111",
-                                    borderBottomRightRadius: msg.role === "user" ? 4 : 16,
-                                    borderBottomLeftRadius: msg.role === "assistant" ? 4 : 16,
-                                }}>
-                                    {msg.content}
+        <div style={{ display: "flex", height: "100vh", background: "#fff", position: "relative", overflow: "hidden" }}>
+            {sidebarOpen && (
+                <>
+                    <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 260, background: "#f9f9f9", zIndex: 10, borderRight: "1px solid #eee", display: "flex", flexDirection: "column" }}>
+                        <div style={{ padding: 16, borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 600, fontSize: 14 }}>Chats</span>
+                            <div style={{ display: "flex", gap: 12 }}>
+                                <button onClick={() => { setSessionId(Date.now().toString()); setMessages([]); setSidebarOpen(false); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#666" }} title="New Chat"><Plus size={18} /></button>
+                                <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#666" }}><X size={18} /></button>
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                            {sessions.length === 0 && <div style={{ fontSize: 13, color: "#888", textAlign: "center", marginTop: 20 }}>No past chats</div>}
+                            {sessions.map(s => (
+                                <div key={s.id} style={{ display: "flex", alignItems: "center", marginBottom: 4, borderRadius: 8, padding: "8px 12px", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "#f0f0f0"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                    <button onClick={() => loadSession(s.id)} style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</button>
                                 </div>
-                                {msg.role === "assistant" && renderResult(msg)}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Loading */}
-                    {loading && (
-                        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-                            <img src="/logo.png" alt="AI" style={{ width: 28, height: 28 }} />
-                            <div style={{ padding: "10px 14px", background: "#f4f4f4", borderRadius: 16, fontSize: 14 }}>
-                                <span className="dot-pulse">⏳ Thinking...</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Suggestion chips */}
-                    {showChips && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
-                            {["I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?"].map((chip) => (
-                                <button key={chip} onClick={() => send(chip)} style={{
-                                    padding: "8px 16px", borderRadius: 20, border: "1px solid #ddd",
-                                    background: "#fff", fontSize: 13, cursor: "pointer", color: "#555",
-                                    transition: "all 0.15s",
-                                }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f4f4"; e.currentTarget.style.borderColor = "#bbb"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#ddd"; }}
-                                >{chip}</button>
                             ))}
                         </div>
-                    )}
-
-                    <div ref={bottomRef} />
-                </div>
-            </main>
-
-            {/* Input */}
-            <div style={{ padding: "12px 16px 20px", borderTop: "1px solid #f0f0f0" }}>
-                <div style={{
-                    maxWidth: 640, margin: "0 auto",
-                    display: "flex", alignItems: "flex-end",
-                    border: "1px solid #d9d9d9", borderRadius: 24,
-                    padding: "4px 6px 4px 10px", background: "#fff",
-                    boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+                    </div>
+                    <div onClick={() => setSidebarOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.2)", zIndex: 9 }} />
+                </>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%" }}>
+                {/* Header */}
+                <header style={{
+                    padding: "10px 20px", borderBottom: "1px solid #eee",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
                 }}>
-                    {/* Upload */}
-                    <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" onChange={handleUpload} style={{ display: "none" }} />
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading || loading} style={{
-                        width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "none",
-                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                        marginBottom: 2, opacity: uploading ? 0.4 : 0.6, transition: "opacity 0.15s",
-                    }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
-                        title="Upload resume or document"
-                    >
-                        <Paperclip size={18} color="#666" strokeWidth={2} />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <button onClick={() => { loadSessions(); setSidebarOpen(true); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#666" }}>
+                            <Menu size={20} />
+                        </button>
+                        <img src="/logo.png" alt="HireKit" style={{ width: 28, height: 28 }} />
+                        <span style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>HireKit</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {messages.length > 0 && (
+                            <button onClick={deleteChat} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", display: "flex", alignItems: "center", marginRight: 10 }} title="Clear Chat">
+                                <Trash2 size={18} />
+                                <span style={{ fontSize: 13, marginLeft: 6, fontWeight: 500 }}>Clear</span>
+                            </button>
+                        )}
+                        <a href="/profile" style={{ display: "flex", alignItems: "center" }}>
+                            {user.avatar ? (
+                                <img src={user.avatar} alt="" style={{ width: 28, height: 28, borderRadius: "50%", cursor: "pointer" }} />
+                            ) : (
+                                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#888", cursor: "pointer" }}>{(user.name || "?")[0]}</div>
+                            )}
+                        </a>
+                        <button onClick={handleLogout} style={{
+                            fontSize: 12, color: "#888", background: "none", border: "none", cursor: "pointer",
+                        }}>Logout</button>
+                    </div>
+                </header>
 
-                    <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKey}
-                        placeholder={uploading ? "Reading file..." : "Message HireKit..."}
-                        rows={1}
-                        disabled={uploading}
-                        style={{
-                            flex: 1, border: "none", outline: "none", resize: "none",
-                            fontSize: 15, padding: "10px 0", lineHeight: 1.5,
-                            maxHeight: 150, fontFamily: "inherit", background: "transparent", color: "#111",
-                        }}
-                    />
+                {/* Messages */}
+                <main style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
+                    <div style={{ maxWidth: 700, margin: "0 auto" }}>
+                        {messages.map((msg) => (
+                            <div key={msg.id} style={{
+                                display: "flex", gap: 10, marginBottom: 20,
+                                flexDirection: msg.role === "user" ? "row-reverse" : "row",
+                            }}>
+                                {msg.role === "assistant" && (
+                                    <img src="/logo.png" alt="AI" style={{ width: 28, height: 28, flexShrink: 0, marginTop: 2 }} />
+                                )}
+                                <div style={{ maxWidth: "85%" }}>
+                                    <div style={{
+                                        padding: "10px 14px", borderRadius: 16, fontSize: 14, lineHeight: 1.6,
+                                        whiteSpace: "pre-wrap",
+                                        background: msg.role === "user" ? "#111" : "#f4f4f4",
+                                        color: msg.role === "user" ? "#fff" : "#111",
+                                        borderBottomRightRadius: msg.role === "user" ? 4 : 16,
+                                        borderBottomLeftRadius: msg.role === "assistant" ? 4 : 16,
+                                    }}>
+                                        {msg.content}
+                                    </div>
+                                    {msg.role === "assistant" && renderResult(msg)}
+                                </div>
+                            </div>
+                        ))}
 
-                    <button onClick={() => send()} disabled={!input.trim() || loading || uploading} style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        background: input.trim() && !loading ? "#000" : "#e5e5e5",
-                        border: "none", cursor: input.trim() && !loading ? "pointer" : "default",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "background 0.15s", marginBottom: 2,
+                        {/* Loading */}
+                        {loading && (
+                            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                                <img src="/logo.png" alt="AI" style={{ width: 28, height: 28 }} />
+                                <div style={{ padding: "12px 16px", background: "#f4f4f4", borderRadius: 16, display: "flex", alignItems: "center" }}>
+                                    <TypingIndicator />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Suggestion chips */}
+                        {showChips && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
+                                {["I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?"].map((chip) => (
+                                    <button key={chip} onClick={() => send(chip)} style={{
+                                        padding: "8px 16px", borderRadius: 20, border: "1px solid #ddd",
+                                        background: "#fff", fontSize: 13, cursor: "pointer", color: "#555",
+                                        transition: "all 0.15s",
+                                    }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f4f4"; e.currentTarget.style.borderColor = "#bbb"; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#ddd"; }}
+                                    >{chip}</button>
+                                ))}
+                            </div>
+                        )}
+
+                        <div ref={bottomRef} />
+                    </div>
+                </main>
+
+                {/* Input */}
+                <div style={{ padding: "12px 16px 20px", borderTop: "1px solid #f0f0f0" }}>
+                    <div style={{
+                        maxWidth: 640, margin: "0 auto",
                     }}>
-                        <ArrowUp size={16} strokeWidth={2.5} color={input.trim() && !loading ? "#fff" : "#999"} />
-                    </button>
+                        {selectedFile && (
+                            <div style={{
+                                padding: "8px 12px", background: "#f9f9f9", borderRadius: 12, marginBottom: 8,
+                                display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #eee",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ padding: 6, background: "#fff", borderRadius: 8, border: "1px solid #e5e5e5" }}>
+                                        <Paperclip size={14} color="#666" />
+                                    </div>
+                                    <span style={{ fontSize: 13, color: "#333", fontWeight: 500, maxWidth: 200, WebkitLineClamp: 1, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{selectedFile.name}</span>
+                                </div>
+                                <button onClick={() => setSelectedFile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", display: "flex" }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        <div style={{
+                            display: "flex", alignItems: "flex-end",
+                            border: "1px solid #d9d9d9", borderRadius: 24,
+                            padding: "4px 6px 4px 10px", background: "#fff",
+                            boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+                        }}>
+                            <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md" onChange={handleUpload} style={{ display: "none" }} />
+                            <button onClick={() => fileInputRef.current?.click()} disabled={uploading || loading} style={{
+                                width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "none",
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                opacity: uploading ? 0.4 : 0.6, transition: "opacity 0.15s", marginBottom: 2,
+                            }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+                                title="Upload resume or document"
+                            >
+                                <Plus size={20} color="#666" strokeWidth={2} />
+                            </button>
+
+                            <textarea
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKey}
+                                placeholder={uploading ? "Reading file..." : "Message HireKit..."}
+                                rows={1}
+                                disabled={uploading}
+                                style={{
+                                    flex: 1, border: "none", outline: "none", resize: "none",
+                                    fontSize: 15, padding: "10px 0 10px 8px", lineHeight: 1.5,
+                                    maxHeight: 150, fontFamily: "inherit", background: "transparent", color: "#111",
+                                }}
+                            />
+
+                            <button onClick={() => send()} disabled={(!input.trim() && !selectedFile) || loading || uploading} style={{
+                                width: 32, height: 32, borderRadius: "50%",
+                                background: (input.trim() || selectedFile) && !loading ? "#000" : "#e5e5e5",
+                                border: "none", cursor: (input.trim() || selectedFile) && !loading ? "pointer" : "default",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "background 0.15s", marginBottom: 2,
+                            }}>
+                                <ArrowUp size={16} strokeWidth={2.5} color={(input.trim() || selectedFile) && !loading ? "#fff" : "#999"} />
+                            </button>
+                        </div>
+                    </div>
+                    <p style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginTop: 8 }}>
+                        HireKit can make mistakes. Verify important information.
+                    </p>
                 </div>
-                <p style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginTop: 8 }}>
-                    HireKit can make mistakes. Verify important information.
-                </p>
             </div>
         </div>
     );
