@@ -203,7 +203,7 @@ function HomeInner() {
     const loadSession = async (id: string) => {
         const tk = localStorage.getItem("hirekit_token");
         if (!tk) return;
-        setLoading(true);
+        
         try {
             const res = await fetch(`${API_URL}/api/chat/history/${id}`, { headers: { Authorization: `Bearer ${tk}` } });
             const data = await res.json();
@@ -214,7 +214,7 @@ function HomeInner() {
                 })));
             }
         } catch (err) { }
-        setLoading(false);
+        
         setSidebarOpen(false);
     };
 
@@ -582,8 +582,14 @@ ${fileContext}` : fileContext;
                             </div>
 
                             {filteredSessions.length === 0 && <div style={{ fontSize: 13, color: "#888", textAlign: "center", marginTop: 20 }}>No past chats</div>}
+                            <style>
+                                {`
+                                .chat-item:hover .chat-actions { opacity: 1 !important; }
+                                `}
+                            </style>
                             {filteredSessions.map(s => (
                                 <div key={s.id}
+                                    className="chat-item"
                                     style={{ display: "flex", alignItems: "center", marginBottom: 4, borderRadius: 8, padding: "8px 12px", transition: "background 0.2s", background: s.id === sessionId ? "#f0f0f0" : "transparent" }}
                                     onMouseEnter={e => { if (s.id !== sessionId) e.currentTarget.style.background = "#f4f4f4"; }}
                                     onMouseLeave={e => { if (s.id !== sessionId) e.currentTarget.style.background = "transparent"; }}
@@ -606,10 +612,9 @@ ${fileContext}` : fileContext;
                                         <div style={{ flex: 1, overflow: "hidden", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                             <span style={{ fontSize: 13, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</span>
 
-                                            <div style={{ display: "flex", gap: 4, opacity: s.id === sessionId ? 1 : 0.4 }} className="chat-actions">
-                                                <button onClick={(e) => { e.stopPropagation(); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888", display: "flex", alignItems: "center" }} title="Pin"><Pin size={14} /></button>
-                                                <button onClick={(e) => { e.stopPropagation(); setEditChatName(s.title); setEditingChatId(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#888", display: "flex", alignItems: "center" }} title="Rename"><Pencil size={14} /></button>
-                                                <button onClick={(e) => { e.stopPropagation(); deleteChat(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#ef4444", display: "flex", alignItems: "center" }} title="Delete"><Trash2 size={14} /></button>
+                                            <div style={{ display: "flex", gap: 6, opacity: s.id === sessionId ? 1 : 0 }} className="chat-actions">
+                                                <button onClick={(e) => { e.stopPropagation(); setEditChatName(s.title); setEditingChatId(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#666", display: "flex", alignItems: "center" }} title="Rename"><Pencil size={15} strokeWidth={2.5} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); deleteChat(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#ef4444", display: "flex", alignItems: "center" }} title="Delete"><Trash2 size={15} strokeWidth={2.5} /></button>
                                             </div>
                                         </div>
                                     )}

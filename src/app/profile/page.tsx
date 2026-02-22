@@ -220,8 +220,6 @@ export default function ProfilePage() {
                         {editing ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                 {[
-                                    { label: "Avatar Image URL", value: avatarUrl, set: setAvatarUrl, placeholder: "e.g. https://example.com/me.png" },
-                                    { label: "Username", value: username, set: setUsername, placeholder: "e.g. johndoe" },
                                     { label: "Full Name", value: name, set: setName },
                                     { label: "Target Role", value: targetRole, set: setTargetRole, placeholder: "e.g. Barista, React Developer, Nurse" },
                                     { label: "Skills (comma separated)", value: skills, set: setSkills, placeholder: "e.g. React, Node.js, TypeScript" },
