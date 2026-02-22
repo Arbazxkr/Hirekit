@@ -63,8 +63,8 @@ const renderMessageContent = (content: string) => {
     if (content.startsWith("📎 Attached: ")) {
         const filename = content.replace("📎 Attached: ", "");
         return (
-            <div style={{ 
-                padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12, 
+            <div style={{
+                padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12,
                 display: "inline-flex", alignItems: "center", gap: 8,
                 border: "1px solid rgba(255,255,255,0.2)"
             }}>
@@ -73,12 +73,12 @@ const renderMessageContent = (content: string) => {
             </div>
         );
     }
-    
+
     if (content.includes("[Attached File Context]")) {
         const parts = content.split("\n\n[Attached File Context]\n");
         const userText = parts[0].trim();
         const fileDetail = parts.length > 1 ? parts[1] : parts[0];
-        
+
         let filename = "document";
         const match = fileDetail.match(/I uploaded "(.*)"\. Content:/);
         if (match) filename = match[1];
@@ -86,9 +86,9 @@ const renderMessageContent = (content: string) => {
         return (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
                 {userText && userText !== fileDetail && <div style={{ whiteSpace: "pre-wrap" }}>{userText}</div>}
-                <div style={{ 
-                    padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12, 
-                    display: "inline-flex", alignItems: "center", gap: 8, 
+                <div style={{
+                    padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12,
+                    display: "inline-flex", alignItems: "center", gap: 8,
                     border: "1px solid rgba(255,255,255,0.2)"
                 }}>
                     <Paperclip size={14} color="#bbb" />
@@ -96,14 +96,14 @@ const renderMessageContent = (content: string) => {
                 </div>
             </div>
         );
-    } 
-    
+    }
+
     if (content.startsWith('I uploaded "') && content.includes('". Content:\n')) {
         const match = content.match(/I uploaded "(.*)"\. Content:/);
         const filename = match ? match[1] : "document";
         return (
-            <div style={{ 
-                padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12, 
+            <div style={{
+                padding: "8px 12px", background: "rgba(255,255,255,0.1)", borderRadius: 12,
                 display: "inline-flex", alignItems: "center", gap: 8,
                 border: "1px solid rgba(255,255,255,0.2)"
             }}>
@@ -136,6 +136,24 @@ function HomeInner() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sessions, setSessions] = useState<{ id: string, title: string }[]>([]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [editingChatId, setEditingChatId] = useState<string | null>(null);
+    const [editChatName, setEditChatName] = useState("");
+
+    // Command K hotkey logic
+    useEffect(() => {
+        const handleCmdK = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+                e.preventDefault();
+                loadSessions();
+                setSidebarOpen(true);
+            }
+        };
+        document.addEventListener("keydown", handleCmdK);
+        return () => document.removeEventListener("keydown", handleCmdK);
+    }, []);
+
+    const filteredSessions = sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
     const bottomRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -218,21 +236,21 @@ function HomeInner() {
             setEditingChatId(null);
             return;
         }
-        
+
         const tk = localStorage.getItem("hirekit_token");
         if (!tk) return;
-        
+
         try {
             // Optimistic update
             setSessions(prev => prev.map(s => s.id === idToRename ? { ...s, title: editChatName } : s));
-            
-            await fetch(`${API_URL}/api/chat/rename`, { 
-                method: "PUT", 
+
+            await fetch(`${API_URL}/api/chat/rename`, {
+                method: "PUT",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
                 body: JSON.stringify({ sessionId: idToRename, title: editChatName })
             });
-            
-        } catch (e) {}
+
+        } catch (e) { }
         setEditingChatId(null);
     };
 
@@ -572,7 +590,7 @@ ${fileContext}` : fileContext;
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         {messages.length > 0 && (
-                            <button onClick={deleteChat} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", display: "flex", alignItems: "center", marginRight: 10 }} title="Clear Chat">
+                            <button onClick={() => deleteChat(sessionId)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", display: "flex", alignItems: "center", marginRight: 10 }} title="Clear Chat">
                                 <Trash2 size={18} />
                                 <span style={{ fontSize: 13, marginLeft: 6, fontWeight: 500 }}>Clear</span>
                             </button>
