@@ -141,6 +141,7 @@ function HomeInner() {
     const [editChatName, setEditChatName] = useState("");
     const [listening, setListening] = useState(false);
     const recognitionRef = useRef<any>(null);
+    const finalTranscriptRef = useRef<string>("");
     const [suggestionChips, setSuggestionChips] = useState<string[]>([
         "I'm a software developer", "Looking for Gulf jobs", "Help me build a resume", "What can you do?",
     ]);
@@ -173,14 +174,25 @@ function HomeInner() {
 
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
-        recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.continuous = true;
+        recognition.interimResults = true;
         recognition.lang = "en-IN"; // Set to en-IN so Hindi is written in English characters (Hinglish)
+
+        finalTranscriptRef.current = input ? input + " " : "";
 
         recognition.onstart = () => setListening(true);
         recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            setInput(prev => prev ? prev + " " + transcript : transcript);
+            let interimTranscript = "";
+            let finalStr = finalTranscriptRef.current;
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalStr += event.results[i][0].transcript;
+                    finalTranscriptRef.current = finalStr;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            setInput(finalStr + interimTranscript);
         };
         recognition.onerror = () => setListening(false);
         recognition.onend = () => setListening(false);
@@ -576,15 +588,7 @@ ${fileContext}` : fileContext;
             }
 
             case "SAVE_PROFILE":
-                return (
-                    <div style={{
-                        marginTop: 8, padding: "6px 12px", borderRadius: 8,
-                        background: "#f0fdf4", border: "1px solid #bbf7d0",
-                        fontSize: 12, color: "#166534", display: "inline-block",
-                    }}>
-                        ✅ Profile saved!
-                    </div>
-                );
+                return null;
 
             default:
                 return null;

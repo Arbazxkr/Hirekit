@@ -2,7 +2,7 @@ import { getSupabase } from "./database";
 
 // Plan limits
 const PLAN_LIMITS = {
-    free: { chats: 5, applies: 0, resumes: 1, uploads: 2 },
+    free: { chats: -1, applies: -1, resumes: -1, uploads: -1 }, // temporarily unlimited for testing
     pro: { chats: 100, applies: 10, resumes: 20, uploads: 50 },
     premium: { chats: -1, applies: -1, resumes: -1, uploads: -1 }, // -1 = unlimited
 };
